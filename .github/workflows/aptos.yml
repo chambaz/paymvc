@@ -1,0 +1,46 @@
+name: Aptos checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: implementations/aptos/move
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24.21.0"
+          cache: npm
+          cache-dependency-path: implementations/aptos/move/package-lock.json
+      - name: Install Aptos CLI
+        run: |
+          curl --fail --location --retry 3 https://github.com/aptos-labs/aptos-core/releases/download/aptos-cli-v9.6.0/aptos-cli-9.6.0-Ubuntu-24.04-x86_64.zip -o "$RUNNER_TEMP/aptos.zip"
+          echo "be21e3f47588560fb309aea1362f93ce2b12c5e88be3d074822a9a7c816a2546  $RUNNER_TEMP/aptos.zip" | sha256sum --check
+          # ~/.local/bin is the official location. The SDK's npm wrapper (node_modules/.bin/aptos)
+          # looks there; without it, the wrapper downloads its own CLI through the GitHub API.
+          mkdir -p "$HOME/.local/bin"
+          unzip -q -o "$RUNNER_TEMP/aptos.zip" -d "$HOME/.local/bin"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - run: aptos --version
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
+      - run: node ../../../conformance/verify.mjs
+      # Screenshots and failure context only. .local/ holds keys and is never uploaded, except the node log.
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: aptos-test-results
+          path: |
+            implementations/aptos/move/test-results
+            implementations/aptos/move/.local/validator.log
+          retention-days: 7

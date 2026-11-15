@@ -1,0 +1,56 @@
+{
+  "name": "@paymvc/thruput-rust",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "vite --host 127.0.0.1",
+    "preview": "vite preview --host 127.0.0.1",
+    "check": "tsc --noEmit && prettier --check . && cargo fmt --all --check && cargo clippy --workspace --all-targets --locked -- -D warnings && tsx scripts/validate-manifest.ts",
+    "format": "prettier --write . && cargo fmt",
+    "build": "tsc --noEmit && vite build",
+    "test": "cargo test --workspace --locked && vitest run",
+    "contracts:test": "thruput build -p credits && thruput test -p paymvc",
+    "contracts:build": "thruput build -p credits && thruput build -p paymvc && thruput codegen ts target/thruput/paymvc.spec.xdr -o src/chain/generated/paymvc.ts && thruput codegen ts target/thruput/credits.spec.xdr -o src/chain/generated/credits.ts",
+    "deploy": "tsx scripts/deploy.ts",
+    "local": "tsx scripts/local.ts",
+    "test:conformance": "node ../../../conformance/verify.mjs",
+    "test:live:browser": "LIVE=1 playwright test",
+    "test:e2e": "playwright test"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "5.3.0",
+    "@fontsource-variable/jetbrains-mono": "5.3.0",
+    "@tanstack/react-query": "5.106.1",
+    "@thruputchain/client": "0.26.0",
+    "@thruputchain/contract-spec": "0.20.0",
+    "@thruputchain/protocol": "0.20.0",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "lucide-react": "1.71.0",
+    "radix-ui": "1.8.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "tailwind-merge": "3.7.0",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@playwright/test": "1.65.0",
+    "@tailwindcss/vite": "4.3.4",
+    "@types/node": "26.6.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.2.1",
+    "ajv": "8.20.0",
+    "prettier": "3.9.10",
+    "tailwindcss": "4.3.4",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vite": "8.3.6",
+    "vitest": "5.1.0"
+  }
+}

@@ -1,0 +1,15 @@
+[package]
+name = "paymvc"
+version = "1.0.0"
+upgrade_policy = "immutable"
+
+[addresses]
+paymvc = "_"
+
+[dev-addresses]
+paymvc = "0xcafe"
+
+[dependencies.AptosFramework]
+git = "https://github.com/aptos-labs/aptos-core.git"
+rev = "07490157d3250932a385010878a3c5ae7c1338bb"
+subdir = "aptos-move/framework/aptos-framework"

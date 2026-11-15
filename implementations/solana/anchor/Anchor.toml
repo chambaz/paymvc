@@ -1,0 +1,22 @@
+skip_local_validator = true
+
+[toolchain]
+anchor_version = "1.2.2"
+solana_version = "4.1.2"
+
+[features]
+resolution = true
+skip-lint = false
+
+[programs.localnet]
+paymvc = "Wn8Ma9d5nMPhZhqUCXKSJMJMSNGZ8bunifjkD84rA64"
+
+[programs.devnet]
+paymvc = "Wn8Ma9d5nMPhZhqUCXKSJMJMSNGZ8bunifjkD84rA64"
+
+[provider]
+cluster = "devnet"
+wallet = ".local/deployer.json"
+
+[scripts]
+test = "cargo test --locked"

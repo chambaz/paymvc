@@ -1,0 +1,8 @@
+node_modules
+dist
+target
+.local
+Cargo.lock
+src/chain/generated/
+playwright-report
+test-results

@@ -1,0 +1,38 @@
+[package]
+name = "credits"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["rlib"]
+doctest = false
+test = false
+
+# RV32 ELF bin wrapper. `thruput build -p credits` looks for the ELF at
+# `release/credits`. `required-features` keeps host builds from building it.
+[[bin]]
+name = "credits"
+path = "src/main.rs"
+required-features = ["entrypoints"]
+test = false
+bench = false
+
+# `entrypoints` and `dev` are toolchain contracts. Do not rename them.
+[features]
+entrypoints = []
+dev = [
+    "thruput-sdk/dev",
+    "thruput-erc20-if/dev",
+    "thruput-erc20-metadata-if/dev",
+]
+
+[dependencies]
+thruput-erc20-if.workspace = true
+thruput-erc20-metadata-if.workspace = true
+
+[target.'cfg(target_arch = "riscv32")'.dependencies]
+thruput-sdk = { workspace = true }
+
+[target.'cfg(not(target_arch = "riscv32"))'.dependencies]
+thruput-sdk = { workspace = true, features = ["std"] }

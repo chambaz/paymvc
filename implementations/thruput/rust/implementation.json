@@ -1,0 +1,30 @@
+{
+  "id": "thruput-rust",
+  "network": "Thruput Futurenet",
+  "framework": "Rust SDK",
+  "specVersion": "1.0.0-draft.2",
+  "status": "development",
+  "frontend": "src",
+  "deployment": "public/deployment.json",
+  "hostedUrl": null,
+  "commands": {
+    "install": "npm ci",
+    "dev": "npm run dev",
+    "build": "npm run build",
+    "test": "npm test",
+    "conformance": "npm run test:conformance",
+    "deploy": "npm run deploy"
+  },
+  "funding": "Create one wallet, then manually request Futurenet native tokens. The initial budget is 10 native tokens for scheduling capacity. The maintainer funds both contracts' storage at deployment. No browser airdrop or account seeding.",
+  "history": "On-chain directory in registration order, entries keyed by (sender, operation ID), and per-account history vectors of entry keys. Balances come from the separate ERC-20 credits contract. Directory pages hold at most 25 addresses and activity pages at most 5 entries to fit the runtime return buffer; activity uses an absolute history cursor. The UI reads 50 records initially.",
+  "confirmation": "Successful committed receipt and verified application effect at or after its block. Preserve signed bytes before broadcast. A missing receipt or timeout is unknown. Replacement after expiry requires a later state read proving the immutable operation was absent. Futurenet can reset; sessions pin its network hash.",
+  "toolchains": {
+    "thruput-cli": "0.45.0",
+    "thruput-sdk": "0.61.1",
+    "thruput-erc20-if": "0.1.75",
+    "thruput-erc20-metadata-if": "0.1.75",
+    "node": "24.21.0",
+    "@thruputchain/client": "0.26.0",
+    "@thruputchain/protocol": "0.20.0"
+  }
+}

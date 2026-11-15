@@ -1,0 +1,9 @@
+# Thruput CLI profiles for this project. `scripts/deploy.ts` runs the CLI
+# with a private configuration directory in `.local/`, so the deployment
+# key never mixes with your global keys.
+
+[profile.local]
+network = "local"
+
+[profile.futurenet]
+network = "futurenet"

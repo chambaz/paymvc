@@ -1,0 +1,27 @@
+{
+  "id": "stellar-soroban",
+  "network": "Stellar Testnet",
+  "framework": "Soroban",
+  "specVersion": "1.0.0-draft.2",
+  "status": "development",
+  "frontend": "src",
+  "deployment": "public/deployment.json",
+  "hostedUrl": null,
+  "commands": {
+    "install": "npm ci",
+    "dev": "npm run dev",
+    "build": "npm run build",
+    "test": "npm test",
+    "conformance": "npm run test:conformance",
+    "deploy": "npm run deploy"
+  },
+  "funding": "Friendbot funds your single wallet. XLM pays account reserves, execution, and storage rent.",
+  "history": "Persistent entries keyed by (from, operation) and per-account activity indexes read with an absolute cursor. External SEP-41 transfers change token balances without adding app activity.",
+  "confirmation": "Successful closed-ledger transaction plus verified application state. Expiry requires closed-ledger time and complete retained transaction history.",
+  "toolchains": {
+    "rust": "1.96.0",
+    "soroban-sdk": "29.0.1",
+    "stellar-cli": "26.1.0",
+    "node": "24.21.0"
+  }
+}

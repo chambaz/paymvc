@@ -1,0 +1,7 @@
+{
+  "network": "devnet",
+  "rpcUrl": "https://api.devnet.solana.com",
+  "program": "Wn8Ma9d5nMPhZhqUCXKSJMJMSNGZ8bunifjkD84rA64",
+  "genesisHash": "EtWTRABZaYq6iMfeYKouRu166VU2xqa1wcaWoxPkrZBG",
+  "faucetUrl": "https://faucet.solana.com"
+}

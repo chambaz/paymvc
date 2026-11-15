@@ -1,0 +1,13 @@
+{
+  "name": "paymvc",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "install:ethereum": "npm --prefix implementations/ethereum/foundry ci",
+    "dev": "npm --prefix implementations/ethereum/foundry run dev",
+    "build": "npm --prefix implementations/ethereum/foundry run build",
+    "check": "npm --prefix implementations/ethereum/foundry run check",
+    "test": "npm --prefix implementations/ethereum/foundry test",
+    "test:e2e": "npm --prefix implementations/ethereum/foundry run test:e2e"
+  }
+}

@@ -1,0 +1,59 @@
+name: Thruput checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: implementations/thruput/rust
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24.21.0"
+          cache: npm
+          cache-dependency-path: implementations/thruput/rust/package-lock.json
+      - name: Install Rust from rust-toolchain.toml
+        run: rustup toolchain install
+      # Build the CLI outside the project so it uses the runner's stable Rust,
+      # not the contract's pinned nightly.
+      - name: Install Thruput CLI
+        working-directory: ${{ runner.temp }}
+        run: |
+          cargo install thruput --version 0.45.0 --locked
+          thruput --version | grep -F "thruput 0.45.0"
+      # The CLI's default verified hog-devnode bundle. It needs GLIBC 2.38 and
+      # GLIBCXX 3.4.32, which Ubuntu 24.04 provides.
+      - name: Install local node runtime
+        working-directory: ${{ runner.temp }}
+        run: |
+          # hog-devnode links these shared libraries; the standard runner lacks jemalloc and snappy.
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libjemalloc2 libsnappy1v5 libbrotli1 liblz4-1 libzstd1 libbz2-1.0 libatomic1
+          thruput toolchain install
+          ldd "$(thruput toolchain which)" | (! grep "not found")
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run contracts:test
+      - run: npm run contracts:build
+      - name: Check generated bindings
+        run: git diff --exit-code -- src/chain/generated
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      # Playwright starts `npm run local`: a fresh local node, deployment, and frontend.
+      - run: npm run test:e2e
+      - run: node ../../../conformance/verify.mjs
+      # Screenshots and failure context only. .local/ holds keys and is never uploaded.
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: thruput-test-results
+          path: |
+            implementations/thruput/rust/test-results
+          retention-days: 7

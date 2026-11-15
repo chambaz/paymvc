@@ -1,0 +1,178 @@
+{
+  "specVersion": "1.0.0-draft.2",
+  "implementation": "stellar-soroban",
+  "network": "testnet",
+  "deployment": {
+    "contract": "CA5EX43AZZKYYWIZEI7XGZVRHBH7ZMOLVVW6MYEDOXBTWEY2HJKF6MDH",
+    "token": "CDTBRWURLA5SVGTMQ4ZBIPHRYFQS4C7YZ532JGHHCHEUASUM2QFOWA4O"
+  },
+  "chain": {
+    "revision": "aaa5b3a897f658c02a2cc971726e29843e8d30b9",
+    "date": "2026-11-14T00:05:36.166Z",
+    "result": "passed",
+    "balances": {
+      "a": "85",
+      "b": "115"
+    },
+    "activity": {
+      "a": 4,
+      "b": 4
+    },
+    "transactions": [
+      {
+        "step": "register-a",
+        "hash": "387fddc2710ad38dfea92f4f24fd2c7fd55c59a747e6da1dd6c8d5f70c7de0f3"
+      },
+      {
+        "step": "register-b",
+        "hash": "d4ab62dbae79def376aa1a5f765d904050ef8a2f61a8f2a03c78f8dbd1bb161e"
+      },
+      {
+        "step": "send-7",
+        "hash": "b8450e9d8012aaa29ca6f48aa262ef3da64124b34c50b898cf6fa9849839fb15"
+      },
+      {
+        "step": "request-20",
+        "hash": "45818586acc1f94f775b1dc84aa0864b7b9be2f04b3b46e5656e570b9774f8da"
+      },
+      {
+        "step": "approve-20",
+        "hash": "1fab1df5786c8f39ea6893bf510842df646482f7a5fcd7bf754d652f18db9c46"
+      },
+      {
+        "step": "request-5",
+        "hash": "b2ee134ee5572e9a3e0d611a41558d72b375c1638c0a3f6c283a518d4487238a"
+      },
+      {
+        "step": "decline-5",
+        "hash": "433701b345d456d8b32d2db56e3a89220b0e93d8d83ce6f89da049de0c41994d"
+      },
+      {
+        "step": "request-9",
+        "hash": "94953b98155894d6ba013743f5c40c03357990138509611e929293306d4fb6c8"
+      },
+      {
+        "step": "approve-9",
+        "hash": "e15e744353a9473b393452db1dd487f31aa6df620ce5c1131459905d2dd60747"
+      },
+      {
+        "step": "external-transfer-3",
+        "hash": "872e66c70a00748264630ab5ef0d4774b8932006affbe5d71d8a38d3157b2033"
+      }
+    ]
+  },
+  "browser": [
+    {
+      "revision": "aaa5b3a897f658c02a2cc971726e29843e8d30b9",
+      "date": "2026-11-14T00:06:42.901Z",
+      "viewport": "desktop",
+      "result": "passed",
+      "balances": {
+        "a": "85",
+        "b": "115"
+      },
+      "activity": {
+        "a": 4,
+        "b": 4
+      },
+      "transactions": [
+        {
+          "step": "register-a",
+          "hash": "0f2a0ae671ddc45b8af29fdbdd12423c99d3d5df76346f08afdd7fe404a4655d"
+        },
+        {
+          "step": "register-b",
+          "hash": "15a45e8c1d3765dbde938e9f3e529b395738c129de5bf78ce58ea30f4173f89e"
+        },
+        {
+          "step": "send-7",
+          "hash": "ab15afeb27c0f5e0e7b4fba6013390192b925f11d43870c2c36aa09cf1aa73c0"
+        },
+        {
+          "step": "request-20",
+          "hash": "56f1d7c5e9634e11442c5caea400c662a4ec7fe266e1b456e84e0dfb7eb4e335"
+        },
+        {
+          "step": "approve-20",
+          "hash": "4596a17d74655a1bfbe0a804882218693a56d70396864f60b0badaca5f0d90f2"
+        },
+        {
+          "step": "request-5",
+          "hash": "6dc80f7b1f01ecf13466301e0a83b9281ee865f045a72ef59ad90eb3e7f0e6d3"
+        },
+        {
+          "step": "decline-5",
+          "hash": "25e83daedf7f9f7a35c74da9c07b2bc0f083ac7c3949bb03f73185bcaf150564"
+        },
+        {
+          "step": "request-9",
+          "hash": "35aa3d98115e36b08365cab656dce239995260395051f725efc1f69633f75983"
+        },
+        {
+          "step": "approve-9",
+          "hash": "1b657e77e95bc3a4fc08ed5f003059566f3c349be6ee3576f3c44ddc9af6e911"
+        },
+        {
+          "step": "external-transfer-3",
+          "hash": "31ecb2d0c78a6693c9bf60c72cc419a6ee0a07f94dfd71ec1c9ee01969fe1feb"
+        }
+      ]
+    },
+    {
+      "revision": "aaa5b3a897f658c02a2cc971726e29843e8d30b9",
+      "date": "2026-11-14T00:07:47.733Z",
+      "viewport": "mobile",
+      "result": "passed",
+      "balances": {
+        "a": "85",
+        "b": "115"
+      },
+      "activity": {
+        "a": 4,
+        "b": 4
+      },
+      "transactions": [
+        {
+          "step": "register-a",
+          "hash": "06c9ac226ea4fde9e2d0ace79bd8e5b637e962bb266e43737e6ca3db12a5aa21"
+        },
+        {
+          "step": "register-b",
+          "hash": "45bed8962580400394b3eccefaf8fb34f4b0e1fdf71bb052c7e93ee6937ed801"
+        },
+        {
+          "step": "send-7",
+          "hash": "de451c2edd8423cf19faea82b74b4ba598af3ead7bffac3adfff9605d779f100"
+        },
+        {
+          "step": "request-20",
+          "hash": "ad79aa703687c60d517a14fb28f6089ca6b202fb8fb955f51a610e5135888e72"
+        },
+        {
+          "step": "approve-20",
+          "hash": "3b48f75298f381a5b548dc049ecb2ffe037e1cd16f4e021fe73ca45e63cc9456"
+        },
+        {
+          "step": "request-5",
+          "hash": "d611b26de45c062f2d465a6d9d4c95817b4889bd80f70afb3e359bcf77040489"
+        },
+        {
+          "step": "decline-5",
+          "hash": "c5fdc76339075704d68a508072784314764747263733870e71e03c62a485630b"
+        },
+        {
+          "step": "request-9",
+          "hash": "5d9e62610fb63aed8cb364e4871fee6c023d59c7477f15aac3171d3fa6316969"
+        },
+        {
+          "step": "approve-9",
+          "hash": "aa7d45ce4ca9330deb36e03caf673b25d04224a1b6684b2f4eda31f57db90115"
+        },
+        {
+          "step": "external-transfer-3",
+          "hash": "3a43b5e82c751ce5f25b527de4398a8841899bc608307f839ad94673e2285baa"
+        }
+      ]
+    }
+  ]
+}

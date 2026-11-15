@@ -1,0 +1,55 @@
+name: Solana checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: implementations/solana/anchor
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24.21.0"
+          cache: npm
+          cache-dependency-path: implementations/solana/anchor/package-lock.json
+      - name: Install Rust
+        run: |
+          rustup toolchain install 1.98.1 --profile minimal --component rustfmt --component clippy
+          rustup override set 1.98.1
+      - name: Install Solana and Anchor
+        run: |
+          curl --fail --location --retry 3 https://github.com/anza-xyz/agave/releases/download/v4.1.2/solana-release-x86_64-unknown-linux-gnu.tar.bz2 -o "$RUNNER_TEMP/solana.tar.bz2"
+          echo "5991d027a686eb419a709a479178b33eb83501e8a2bfbf599a81a286bfcbf770  $RUNNER_TEMP/solana.tar.bz2" | sha256sum --check
+          tar -xjf "$RUNNER_TEMP/solana.tar.bz2" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/solana-release/bin" >> "$GITHUB_PATH"
+          mkdir -p "$RUNNER_TEMP/anchor/bin"
+          curl --fail --location --retry 3 https://github.com/otter-sec/anchor/releases/download/v1.2.2/anchor-1.2.2-x86_64-unknown-linux-gnu -o "$RUNNER_TEMP/anchor/bin/anchor"
+          echo "e2c35a973bcfe476f3a89b120e99820f917229faf33d3e71f6625bd94199e741  $RUNNER_TEMP/anchor/bin/anchor" | sha256sum --check
+          chmod +x "$RUNNER_TEMP/anchor/bin/anchor"
+          echo "$RUNNER_TEMP/anchor/bin" >> "$GITHUB_PATH"
+      - run: npm ci
+      - run: npm run contracts:build
+      - name: Check generated client
+        run: git diff --exit-code -- idl src/chain/generated
+      - run: npm run check
+      - run: npm test
+      - run: cargo clippy --all-targets --all-features --locked -- -D warnings
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      # Playwright starts `npm run local`: solana-test-validator and the program built above.
+      - run: npm run test:e2e
+      - run: node ../../../conformance/verify.mjs
+      # Screenshots and failure context only. .local/ holds keys and is never uploaded.
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: solana-test-results
+          path: |
+            implementations/solana/anchor/test-results
+          retention-days: 7

@@ -1,0 +1,8 @@
+.local/
+node_modules/
+dist/
+contracts/build/
+test-results/
+playwright-report/
+.aptos/
+public/local.json

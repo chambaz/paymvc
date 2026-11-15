@@ -1,0 +1,9 @@
+{
+  "chainId": 84532,
+  "rpcUrl": "https://sepolia.base.org",
+  "address": "0xbda6d31a433c9bd3c8dc5520543e79ea1ff8a3a4",
+  "token": "0x12fBC6F809731725d4b0f0f1846e94753e2cB1F5",
+  "deploymentBlock": "58386320",
+  "codeHash": "0xc77b08c0c9663a8ec0c17a4ef141ad41158f15be1bc82a46ce9b148b630baa2b",
+  "faucetUrl": "https://portal.cdp.coinbase.com/onchain-tools/faucet"
+}

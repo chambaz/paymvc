@@ -1,0 +1,11 @@
+node_modules/
+dist/
+target/
+.local/
+.stellar/
+test_snapshots/
+test-results/
+playwright-report/
+public/local.json
+.env
+.env.*

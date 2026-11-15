@@ -1,0 +1,7 @@
+node_modules
+dist
+.local
+contracts/build
+contracts/Move.lock
+test-results
+playwright-report

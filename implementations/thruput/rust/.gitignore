@@ -1,0 +1,7 @@
+/target/
+/.thruput/
+/node_modules/
+/dist/
+/.local/
+/playwright-report/
+/test-results/

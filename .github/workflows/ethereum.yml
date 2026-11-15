@@ -1,0 +1,57 @@
+name: EVM implementation checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: implementations/ethereum/foundry
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24.21.0"
+          cache: npm
+          cache-dependency-path: implementations/ethereum/foundry/package-lock.json
+      - uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.7.1
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: npm run contracts:build
+      - run: git diff --exit-code -- src/chain/generated/
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run test:conformance
+      - run: npm run test:networks
+      # Screenshots and failure context only. .local/ holds keys and is never uploaded.
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: evm-test-results
+          path: |
+            implementations/ethereum/foundry/test-results
+          retention-days: 7
+  visual:
+    runs-on: ubuntu-24.04
+    # Same image as npm run test:visual, so baselines match on every machine.
+    container: mcr.microsoft.com/playwright:v1.65.0-noble
+    defaults:
+      run:
+        working-directory: implementations/ethereum/foundry
+    steps:
+      - uses: actions/checkout@v6
+      - run: npm ci
+      - run: npx playwright test -c playwright.visual.config.ts
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: evm-visual-test-results
+          path: |
+            implementations/ethereum/foundry/test-results
+          retention-days: 7

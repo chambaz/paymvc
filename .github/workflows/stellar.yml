@@ -1,0 +1,62 @@
+name: Stellar checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    defaults:
+      run:
+        working-directory: implementations/stellar/soroban
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24.21.0"
+          cache: npm
+          cache-dependency-path: implementations/stellar/soroban/package-lock.json
+      - name: Install Rust and the Stellar CLI
+        run: |
+          rustup toolchain install 1.96.0 --profile minimal --component rustfmt --component clippy --target wasm32v1-none
+          rustup override set 1.96.0
+          # The pinned release binary, checked against its published SHA-256. Faster than building from source.
+          curl --fail --location --retry 3 https://github.com/stellar/stellar-cli/releases/download/v26.1.0/stellar-cli-26.1.0-x86_64-unknown-linux-gnu.tar.gz -o "$RUNNER_TEMP/stellar.tgz"
+          echo "e18d5a7629102e1ccc07241acbcbebfc05b1c02476ce7d3204ba2d7418be5c0c  $RUNNER_TEMP/stellar.tgz" | sha256sum --check
+          mkdir -p "$HOME/.local/bin"
+          tar -xzf "$RUNNER_TEMP/stellar.tgz" -C "$HOME/.local/bin" stellar
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - run: stellar --version
+      - run: npm ci
+      - run: npm run contracts:build
+      - run: npm run check
+      - run: npm test
+      - run: cargo clippy --all-targets --all-features --locked -- -D warnings
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: npm run local
+      # Soroban RPC is healthy before Horizon has ingested a ledger and before Friendbot answers.
+      - name: Wait for local ledger, Horizon, and Friendbot
+        run: |
+          for attempt in $(seq 1 90); do
+            if curl -fsS http://127.0.0.1:8000/rpc -H 'Content-Type: application/json' -d '{"jsonrpc":"2.0","id":1,"method":"getHealth"}' | grep -q '"healthy"' \
+              && curl -fsS http://127.0.0.1:8000/ | grep -Eq '"history_latest_ledger": ?[1-9]' \
+              && [ "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/friendbot)" -lt 500 ]; then
+              exit 0
+            fi
+            sleep 2
+          done
+          exit 1
+      - run: LOCAL=1 npm run deploy
+      - run: npm run test:conformance
+      - run: LOCAL=1 npm run test:live
+      # Screenshots and failure context only. .local/ holds keys and is never uploaded.
+      - if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: stellar-test-results
+          path: |
+            implementations/stellar/soroban/test-results
+          retention-days: 7

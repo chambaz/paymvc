@@ -1,0 +1,9 @@
+{
+  "chainId": 11155111,
+  "rpcUrl": "https://ethereum-sepolia-rpc.publicnode.com",
+  "address": "0xdf545270cd8207760f68f652d919d6cac23c3ba6",
+  "token": "0xcF953a507C39f95fDb8277Dc109e29502A917F3A",
+  "deploymentBlock": "12128118",
+  "codeHash": "0xa6b63d06388b86ea03f36d3ad81a61172dfd7900bbcd24307462abf5f3fbe878",
+  "faucetUrl": "https://cloud.google.com/application/web3/faucet/ethereum/sepolia"
+}

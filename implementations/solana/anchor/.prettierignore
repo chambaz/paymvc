@@ -1,0 +1,17 @@
+node_modules
+out
+cache
+dist
+src/chain/abi.ts
+src/chain/*Abi.ts
+public/local.json
+test-results
+playwright-report
+package-lock.json
+contracts
+test
+.local
+target
+.anchor
+src/chain/generated
+idl

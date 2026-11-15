@@ -1,0 +1,178 @@
+{
+  "specVersion": "1.0.0-draft.2",
+  "implementation": "solana-anchor",
+  "network": "devnet",
+  "deployment": {
+    "program": "Wn8Ma9d5nMPhZhqUCXKSJMJMSNGZ8bunifjkD84rA64",
+    "mint": "2boFMqZA1YsaDRKKQWgh3P39iKw44aJSGH5ipnMFPtxC"
+  },
+  "chain": {
+    "revision": "9c5bd18b21903a02cb4233a5ab2b873573586aaf",
+    "date": "2026-11-14T00:48:21.574Z",
+    "result": "passed",
+    "balances": {
+      "a": "85",
+      "b": "115"
+    },
+    "activity": {
+      "a": 4,
+      "b": 4
+    },
+    "transactions": [
+      {
+        "step": "a:register",
+        "hash": "41b1pLFxD8RC6b37c2suPH99bEksNRnEXD59ELpKo3Us5k2QJbUatcg4UQ8v3E8kKFFwLGr2QV6YGamykkfZLK3L"
+      },
+      {
+        "step": "b:register",
+        "hash": "HEK8zPfV2KA8vWqbb1ob3qShuftRjTor5xgZor9bzoyovSk4DgAdXggxUmcTbyQzYrrp6GrQ21Z4RpPnTCWmTSm"
+      },
+      {
+        "step": "a:send 7",
+        "hash": "5obeFsY6NVJSuPVo852k3GuE58AuhkfssTYdMuGATT9pLjWHcgZPT7KparLUqJtr6VBY9fKUjdmu1txm4mWcVbJy"
+      },
+      {
+        "step": "b:request 20",
+        "hash": "3KrSTYmbESJXaqjS5j4atUB1MkpaimNDFPeMjKwmDnDJGs5k9CgRf3BNshw4gdik6dM7xdFgSw2TqUsfnGBkujpf"
+      },
+      {
+        "step": "a:approve 20",
+        "hash": "5Hmr3XgY46hJfx9xNLPDqSwnSqXsKjkj14M5CeGpWJBaPRNbzhSKZoernmqhZ2G1zvQeRjRbd29ppRon2rdmfFvQ"
+      },
+      {
+        "step": "b:request 5",
+        "hash": "YiD3MtCYqTykyaSxLmjZyFMc53aXNiiT2eK14M6wkHWmCA7rg83WptFBxxSMxUWL9RPXWHknUVLtq3rQpNyp1X3"
+      },
+      {
+        "step": "a:decline 5",
+        "hash": "3F7LniSuRESgKq9tX6mGfMWmbgFsHoMSSWUPjHg2Ar8uuD6qN1wvrSJr4n64u3pXykAW6jaaocx9t6WEUeoVSBis"
+      },
+      {
+        "step": "a:request 9",
+        "hash": "4FkAmz1snioBMX3byR16kfVMo6LKb8dUabHSKZ9fcrHKvZakbYssdmzNTm2dSmYURDHKvs8tRG3fTfwsebRNcKD3"
+      },
+      {
+        "step": "b:approve 9",
+        "hash": "3ayN8EGqNB2nk8MhD11UKrZ64TxGYa3EbmvXmi5YhULwN8RzVnyCAV3MUo7YDh97BFbTsctG1CCQkMr6ic7q8Z7K"
+      },
+      {
+        "step": "b:external transfer 3",
+        "hash": "3zm1EpnVXxBrvPgEVKNsUYHZA1Q42bhsts4Md5SKx6EkZ9YeXvXp2dx8VKDTXVGzP9WTahLoq2TnTgj8YJh8s1PE"
+      }
+    ]
+  },
+  "browser": [
+    {
+      "revision": "8fd52d79f02c88967cba52010a541cc3bc3502a7",
+      "date": "2026-11-14T01:23:04.114Z",
+      "result": "passed",
+      "balances": {
+        "a": "85",
+        "b": "115"
+      },
+      "activity": {
+        "a": 4,
+        "b": 4
+      },
+      "transactions": [
+        {
+          "step": "a:register",
+          "hash": "39zA2p4ZSQ9VqBHTyqVHrKYS7G6wF41wC7uYe8hs5pq2gLV3WKoJpY5iRW41HvafkVtH3UU4gyhz91RZ6iya7xu"
+        },
+        {
+          "step": "b:register",
+          "hash": "2VxNmm16kFx9mVV7GSoFfABy5n3iLqJJZnGPYahowAVWLNbigqLMpaEibMnDy1p2bfawj9dzqBfB66rRar6ASus8"
+        },
+        {
+          "step": "a:send 7",
+          "hash": "JtxbDp1AGuEcyv5GC5NE1EPHCzWRkRzeL6ZegW2PW5YGsZq6JPbK7hKQJygPiopGD8cgurWEUjowqV26SgEd2wM"
+        },
+        {
+          "step": "b:request 20",
+          "hash": "5ajArm8e7YzotTJwo9fiF1f9CA4WBHsTvtsQXxu4MZCJuvxz1CruSFqz9tnwaqbuaBtL8g5F43fqApcP2Nhdyzw4"
+        },
+        {
+          "step": "a:approve 20",
+          "hash": "3XJi7xgAUNeJL7FmbNiSUAt4Ce8UpxfSBvdR4ZTVg6VPnnd3gq1t6vaBz7wAus1oAwY3DU5YW5pqQtXiBDcsBMS2"
+        },
+        {
+          "step": "b:request 5",
+          "hash": "pbeqKTYBvMKrXShL2KsWSbaLyVdRRHdV4TA6qEH57o18T6rCFSgZrAmSbf7XF5XcfGQTpxZfzxkSvFJ2L99SU3b"
+        },
+        {
+          "step": "a:decline 5",
+          "hash": "5AicZm25KuWB77gbE1jeF88hvtxqCJe3TNna1LoVdu8o3bLofQmvu2NaZfJdtgPtv7Ejdva76Xmm1rbkxmdp16iT"
+        },
+        {
+          "step": "a:request 9",
+          "hash": "3MCVP95WGhuANkQM7UTvywAtAeyjBYADrMx3BL9GRfdrN8AAYEnqzP8aYS8CsG1ccqgj1xURuHVpsggKhwNqDnUF"
+        },
+        {
+          "step": "b:approve 9",
+          "hash": "3muznMHJHwgUZr148M3RFUsp6vhatgF2TXMtSLqPvz5P869pVCNDBqwdHYW44TZxtHi4pc9rM5N3sb7SJrQg29AZ"
+        },
+        {
+          "step": "b:external transfer 3",
+          "hash": "23oJ7nn8e15nNFZXu9pu3nNgJdNkgssc6F2fAZ4TD5cP4UdzxiT7fiCtW8TgencKs7H4BSPeGbusP1PfWmSobjpp"
+        }
+      ],
+      "viewport": "desktop"
+    },
+    {
+      "revision": "8fd52d79f02c88967cba52010a541cc3bc3502a7",
+      "date": "2026-11-14T01:25:16.679Z",
+      "result": "passed",
+      "balances": {
+        "a": "85",
+        "b": "115"
+      },
+      "activity": {
+        "a": 4,
+        "b": 4
+      },
+      "transactions": [
+        {
+          "step": "a:register",
+          "hash": "5wf8PDpmggtzG1LzHcuqrXH6vbzkcCzifU3KmoqdiPBtxqsMZ1aQdrf351AJwhN33tjhEkJBMzC2F58MLyGvH9UR"
+        },
+        {
+          "step": "b:register",
+          "hash": "3sW5A1eyc24jvxMERTjLeo8dB2Kvr4CA2CJgX8e8zcGaV5hRv5pjgQ1wgchSjcQm6AFercg11u1GxGqqZTbVAgoy"
+        },
+        {
+          "step": "a:send 7",
+          "hash": "3R7L626msDQiKktk1RScfacLZAVsW1ewSCQpUnTSD2EVWZw7y12PgpsedQkLk5HB3FBbJdKXpLtyb9r24JpByAhv"
+        },
+        {
+          "step": "b:request 20",
+          "hash": "4248mpkak6kpAyRLP9AmF3KguYFomFM8aGRHo3d9hCcZnFKKX5oQGLtDcF8SPWVxyWfh3s915DvxVm5WJHqznaFX"
+        },
+        {
+          "step": "a:approve 20",
+          "hash": "X3h3hhRhYoe9s3C2pjCXnHyBMM6SucCWdYEMkij7rnrRbSYJY3gdcQiKpbLuH8ZWSA4eLKvWExWYx1UM8BuqXEa"
+        },
+        {
+          "step": "b:request 5",
+          "hash": "43TPVmghGBVzirxfh4jWZq2fvBhFQtrHDiXAqT6wuhZLW5Sx6LDvTMsV9Dz7e6qQRMBUVvZZZhet8ica6maqmGXZ"
+        },
+        {
+          "step": "a:decline 5",
+          "hash": "5jiZvRj7MGUViTMhrwfmPLtFyZa7pE2hzKf7M9Zcn4ts3Wm8hwADpwjGE9qFpg7oFGRpFo1n9wJwBGVBdwUVR97"
+        },
+        {
+          "step": "a:request 9",
+          "hash": "2Q9ChEor7WWSYheZQ4eHjXM9hjNugoT5tkSWxUsRn2AGr6sVHtZyVzCshvEo6DkaQGc5jGzrV96DhvoqHMMmRTLP"
+        },
+        {
+          "step": "b:approve 9",
+          "hash": "27QSoYhTboBf38zyAixB94kAQF9FzQj8Ympt1CvmpyjwprywtCfZdoeWtD7B2YEdamh1NaK4afKJA4rMMP2vD8y9"
+        },
+        {
+          "step": "b:external transfer 3",
+          "hash": "3Dvuv4dTpr3S5q3vSbfUzqK3SqWHjWdGhCB21B4o2MQqQyHk3DHnvpurYK2ALZdTfkZw1mjByiuhrdbQSckSZcib"
+        }
+      ],
+      "viewport": "mobile"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+[package]
+name = "paymvc"
+edition = "2024"
+
+[addresses]
+paymvc = "0x0"

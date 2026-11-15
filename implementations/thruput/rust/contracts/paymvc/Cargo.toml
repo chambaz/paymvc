@@ -1,0 +1,44 @@
+[package]
+name = "paymvc"
+version.workspace = true
+edition.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["rlib"]
+doctest = false
+test = false
+
+# RV32 ELF bin wrapper. `thruput build -p paymvc` looks for the ELF at
+# `release/paymvc`. `required-features` keeps host builds from building it.
+[[bin]]
+name = "paymvc"
+path = "src/main.rs"
+required-features = ["entrypoints"]
+test = false
+bench = false
+
+# `entrypoints` and `dev` are toolchain contracts. Do not rename them.
+[features]
+entrypoints = []
+dev = [
+    "thruput-sdk/dev",
+    "thruput-erc20-if/dev",
+    "thruput-erc20-metadata-if/dev",
+]
+
+[dependencies]
+thruput-erc20-if.workspace = true
+thruput-erc20-metadata-if.workspace = true
+
+[target.'cfg(target_arch = "riscv32")'.dependencies]
+thruput-sdk = { workspace = true, features = ["alloc"] }
+
+[target.'cfg(not(target_arch = "riscv32"))'.dependencies]
+thruput-sdk = { workspace = true, features = ["std"] }
+
+# The self-dependency turns on `dev` (the native mock executor) for test
+# builds only, so the library stays no_std for guest builds.
+[dev-dependencies]
+paymvc = { path = ".", features = ["dev"] }
+credits = { path = "../credits", features = ["dev"] }

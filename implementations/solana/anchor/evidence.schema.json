@@ -1,0 +1,89 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "PayMVC live-testnet evidence",
+  "description": "The result of the shared scenario on one public network. One file per network: implementations/<chain>/<framework>/evidence/<network>.json. Never contains keys, signed transactions, or browser profiles.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["specVersion", "implementation", "network", "deployment"],
+  "properties": {
+    "specVersion": { "type": "string" },
+    "implementation": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "network": { "type": "string" },
+    "deployment": {
+      "description": "Public addresses or IDs of the deployed contracts.",
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "chain": { "$ref": "#/definitions/run" },
+    "browser": {
+      "type": "array",
+      "items": {
+        "allOf": [
+          { "$ref": "#/definitions/run" },
+          {
+            "type": "object",
+            "required": ["viewport"],
+            "properties": { "viewport": { "enum": ["desktop", "mobile"] } }
+          }
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "run": {
+      "type": "object",
+      "required": [
+        "revision",
+        "date",
+        "result",
+        "balances",
+        "activity",
+        "transactions"
+      ],
+      "properties": {
+        "revision": {
+          "description": "The commit that was tested. The working tree must be clean.",
+          "type": "string",
+          "pattern": "^[0-9a-f]{40}$"
+        },
+        "date": { "type": "string", "format": "date-time" },
+        "viewport": { "enum": ["desktop", "mobile"] },
+        "result": { "enum": ["passed", "failed"] },
+        "failure": { "type": "string" },
+        "balances": {
+          "description": "Final credits of users A and B. A pass is 85 and 115.",
+          "type": "object",
+          "required": ["a", "b"],
+          "properties": {
+            "a": { "type": "string" },
+            "b": { "type": "string" }
+          },
+          "additionalProperties": false
+        },
+        "activity": {
+          "description": "Final activity rows of users A and B. A pass is 4 and 4.",
+          "type": "object",
+          "required": ["a", "b"],
+          "properties": {
+            "a": { "type": "integer" },
+            "b": { "type": "integer" }
+          },
+          "additionalProperties": false
+        },
+        "transactions": {
+          "description": "Transaction hashes or signatures, in scenario order.",
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["step", "hash"],
+            "additionalProperties": false,
+            "properties": {
+              "step": { "type": "string" },
+              "hash": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

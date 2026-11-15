@@ -1,0 +1,9 @@
+{
+  "network": "testnet",
+  "rpcUrl": "https://fullnode.testnet.sui.io:443",
+  "chainIdentifier": "69WiPg3DAQiwdxfncX6wYQ2siKwAe6L9BZthQea3JNMD",
+  "package": "0x98dcb3692a4f921903af1259547a011d738de0e9fb9dbf0f43995af1bffe134a",
+  "app": "0x4cc007ddbb98d55afaf0111ac0f457ce95ba3cebabbe4332d9ea9e2ee61f5f82",
+  "packageDigest": "BwJaW3zfFDQdYJRKi5DXF8GY2C3RriENMWXzTna4VFiW",
+  "faucetUrl": "https://faucet.sui.io/"
+}

@@ -1,0 +1,23 @@
+[profile.default]
+src = "contracts"
+test = "test"
+solc_version = "0.8.30"
+evm_version = "prague"
+optimizer = true
+optimizer_runs = 200
+libs = ["node_modules"]
+remappings = ["@openzeppelin/=node_modules/@openzeppelin/"]
+
+[profile.default.fuzz]
+runs = 256
+
+[fmt]
+line_length = 100
+
+# The public RPC for each network in src/networks/index.ts. Use the same names with --rpc-url.
+[rpc_endpoints]
+anvil = "http://127.0.0.1:8545"
+ethereum = "https://ethereum-sepolia-rpc.publicnode.com"
+base = "https://sepolia.base.org"
+monad = "https://testnet-rpc.monad.xyz"
+robinhood = "https://rpc.testnet.chain.robinhood.com"

@@ -1,0 +1,13 @@
+node_modules
+out
+cache
+broadcast
+dist
+src/chain/generated
+public/local.json
+test-results
+playwright-report
+package-lock.json
+contracts
+test
+.local

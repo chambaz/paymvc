@@ -1,0 +1,11 @@
+{
+  "network": "testnet",
+  "passphrase": "Test SDF Network ; September 2015",
+  "rpcUrl": "https://soroban-testnet.stellar.org",
+  "horizonUrl": "https://horizon-testnet.stellar.org",
+  "faucetUrl": "https://friendbot.stellar.org",
+  "contract": "CA5EX43AZZKYYWIZEI7XGZVRHBH7ZMOLVVW6MYEDOXBTWEY2HJKF6MDH",
+  "token": "CDTBRWURLA5SVGTMQ4ZBIPHRYFQS4C7YZ532JGHHCHEUASUM2QFOWA4O",
+  "codeHash": "8219b497f1a09a51551e3cf0a6f09c8618887f41358d60e0e5dc991262afdcc7",
+  "tokenHash": "a57e64baaafa4535523df0733984a85b3ca2520b737539e54f560967c50be3a5"
+}

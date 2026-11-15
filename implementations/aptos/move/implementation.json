@@ -1,0 +1,26 @@
+{
+  "id": "aptos-move",
+  "network": "Aptos Testnet",
+  "framework": "Move",
+  "specVersion": "1.0.0-draft.2",
+  "status": "development",
+  "frontend": "src",
+  "deployment": "public/deployment.json",
+  "hostedUrl": null,
+  "commands": {
+    "install": "npm ci",
+    "dev": "npm run dev",
+    "build": "npm run build",
+    "test": "npm test",
+    "conformance": "npm run test:conformance",
+    "deploy": "npm run deploy"
+  },
+  "funding": "Manually fund the single disposable wallet with Testnet APT. The initial estimate is 0.1 APT for registration, storage, and transaction fees. The public faucet may require authentication.",
+  "history": "On-chain tables store registered addresses, entries keyed by sender and operation ID, and per-account activity keys. Native fungible-asset balances include transfers outside PayMVC.",
+  "confirmation": "Committed successful user transaction plus verified application effect. Expiry requires committed ledger time, retained history covering preparation, and a second absent-hash lookup.",
+  "toolchains": {
+    "aptos-cli": "9.6.0",
+    "node": "24.21.0",
+    "@aptos-labs/ts-sdk": "7.5.0"
+  }
+}

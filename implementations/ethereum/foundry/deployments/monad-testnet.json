@@ -1,0 +1,9 @@
+{
+  "chainId": 10143,
+  "rpcUrl": "https://testnet-rpc.monad.xyz",
+  "address": "0x6744b875981b884efdc5aa6e1c73691e2d0f8200",
+  "token": "0xe69c69A9cf6822b58CBd045Bdb2679768234C383",
+  "deploymentBlock": "79468228",
+  "codeHash": "0x7123622aab327e3e3bf40600e61d59d8202711ec23882c1271c7a20c7838f504",
+  "faucetUrl": "https://faucet.monad.xyz"
+}

@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "id",
+    "network",
+    "framework",
+    "specVersion",
+    "status",
+    "frontend",
+    "commands",
+    "deployment",
+    "funding",
+    "history",
+    "confirmation",
+    "toolchains"
+  ],
+  "properties": {
+    "id": { "type": "string", "pattern": "^[a-z0-9-]+$" },
+    "network": { "type": "string" },
+    "framework": { "type": "string" },
+    "specVersion": { "type": "string" },
+    "status": { "enum": ["development", "preview", "conformant"] },
+    "frontend": { "type": "string" },
+    "deployment": { "type": "string" },
+    "funding": { "type": "string" },
+    "history": { "type": "string" },
+    "confirmation": { "type": "string" },
+    "hostedUrl": { "type": ["string", "null"] },
+    "toolchains": {
+      "type": "object",
+      "additionalProperties": { "type": "string" }
+    },
+    "commands": {
+      "type": "object",
+      "properties": {
+        "install": { "type": "string" },
+        "dev": { "type": "string" },
+        "build": { "type": "string" },
+        "test": { "type": "string" },
+        "conformance": { "type": "string" },
+        "deploy": { "type": "string" }
+      },
+      "required": ["install", "dev", "build", "test", "conformance", "deploy"],
+      "additionalProperties": { "type": "string" }
+    }
+  }
+}

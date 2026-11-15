@@ -1,0 +1,857 @@
+import { useRef, useState } from "react";
+import { ThemeToggle } from "./theme-toggle";
+import {
+  ArrowUpRightIcon,
+  ArrowDownLeftIcon,
+  RefreshCwIcon,
+  CopyIcon,
+  CheckIcon,
+  CircleUserRoundIcon,
+} from "lucide-react";
+import { Button } from "./ui/button";
+import { Badge } from "./ui/badge";
+import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
+import { Input } from "./ui/input";
+import { Field, FieldGroup, FieldLabel } from "./ui/field";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "./ui/dialog";
+import { Separator } from "./ui/separator";
+import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
+
+/**
+ * Every implementation, in selector order. `home` is this app's own start page;
+ * `url` opens another implementation. Hosted builds set the VITE_*_URL variables.
+ */
+export const implementations = [
+  {
+    id: "ethereum",
+    home: "/?network=ethereum",
+    name: "Ethereum",
+    framework: "Foundry",
+    url:
+      import.meta.env.VITE_ETHEREUM_URL ||
+      "http://127.0.0.1:5173?network=ethereum",
+  },
+  {
+    id: "base",
+    home: "/?network=base",
+    name: "Base",
+    framework: "Foundry",
+    url: import.meta.env.VITE_BASE_URL || "http://127.0.0.1:5177?network=base",
+  },
+  {
+    id: "robinhood",
+    home: "/?network=robinhood",
+    name: "Robinhood",
+    framework: "Foundry",
+    url:
+      import.meta.env.VITE_ROBINHOOD_URL ||
+      "http://127.0.0.1:5187?network=robinhood",
+  },
+  {
+    id: "monad",
+    home: "/?network=monad",
+    name: "Monad",
+    framework: "Foundry",
+    url:
+      import.meta.env.VITE_MONAD_URL || "http://127.0.0.1:5179?network=monad",
+  },
+  {
+    id: "solana",
+    home: "/",
+    name: "Solana",
+    framework: "Anchor",
+    url: import.meta.env.VITE_SOLANA_URL || "http://127.0.0.1:5175",
+  },
+  {
+    id: "sui",
+    home: "/",
+    name: "Sui",
+    framework: "Move",
+    url: import.meta.env.VITE_SUI_URL || "http://127.0.0.1:5183",
+  },
+  {
+    id: "aptos",
+    home: "/",
+    name: "Aptos",
+    framework: "Move",
+    url: import.meta.env.VITE_APTOS_URL || "http://127.0.0.1:5185",
+  },
+  {
+    id: "stellar",
+    home: "/",
+    name: "Stellar",
+    framework: "Soroban",
+    url: import.meta.env.VITE_STELLAR_URL || "http://127.0.0.1:5181",
+  },
+  {
+    id: "thruput",
+    home: "/",
+    name: "Thruput",
+    framework: "Rust",
+    url: import.meta.env.VITE_THRUPUT_URL || "http://127.0.0.1:5189",
+  },
+] as const;
+export type ImplementationId = (typeof implementations)[number]["id"];
+
+export interface Contact {
+  address: string;
+}
+export interface Row {
+  id: string;
+  address: string;
+  amount: string;
+  state: string;
+  incoming: boolean;
+  request: boolean;
+}
+export interface ViewProps {
+  network: string;
+  implementation: ImplementationId;
+  nativeSymbol?: string;
+  ready: boolean;
+  started: boolean;
+  resetAvailable?: boolean;
+  address: string;
+  balance?: string;
+  contacts: Contact[];
+  contactsLoading?: boolean;
+  contactsError?: boolean;
+  hasMoreContacts?: boolean;
+  onMoreContacts: () => void;
+  rows: Row[];
+  busy: boolean;
+  readOnly: boolean;
+  message: string;
+  error: string;
+  stale: boolean;
+  pending: boolean;
+  pendingRequestId?: string;
+  unknown: boolean;
+  hasMore: boolean;
+  faucetUrl: string;
+  fundingAmount?: string;
+  fundingReceived?: boolean;
+  setupStarted?: boolean;
+  onStart: () => Promise<unknown>;
+  onSubmit: (
+    mode: "send" | "request",
+    recipient: string,
+    amount: string,
+  ) => Promise<boolean>;
+  onResolve: (id: string, action: "approve" | "decline") => void;
+  onRetry: () => void;
+  onDismiss: () => void;
+  onReset: () => void;
+  onRefresh: () => void;
+  onMore: () => void;
+}
+export const shortAddress = (value: string) =>
+  value ? `${value.slice(0, 4)}...${value.slice(-4)}` : "";
+
+function Feedback(props: ViewProps) {
+  if (
+    !props.message &&
+    !props.stale &&
+    !props.readOnly &&
+    !props.error &&
+    !props.pending
+  )
+    return null;
+  return (
+    <div className="flex flex-col gap-3" aria-label="Demo status">
+      {props.message ? (
+        <p role="status" className="text-base text-muted-foreground sm:text-sm">
+          {props.busy ? (
+            <RefreshCwIcon
+              aria-hidden="true"
+              className="mr-2 inline size-4 motion-safe:animate-spin"
+            />
+          ) : null}
+          {props.message}
+        </p>
+      ) : null}
+      {props.stale ? (
+        <Alert>
+          <AlertTitle>Balance may be out of date</AlertTitle>
+          <AlertDescription>
+            The latest read failed. Your previous balance is retained. Refresh
+            to check again.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {props.readOnly ? (
+        <Alert>
+          <AlertTitle>Read-only tab</AlertTitle>
+          <AlertDescription>
+            Another tab owns this demo, or browser locking is unavailable. Close
+            the other tab and reload to make payments here.
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {props.error ? (
+        <Alert variant="destructive">
+          <AlertTitle>
+            {props.unknown ? "Outcome unknown" : "A step needs attention"}
+          </AlertTitle>
+          <AlertDescription>{props.error}</AlertDescription>
+        </Alert>
+      ) : null}
+      {props.pending && !props.busy ? (
+        <div className="flex flex-wrap gap-3">
+          <Button
+            variant="secondary"
+            disabled={props.readOnly}
+            onClick={props.onRetry}
+          >
+            Recheck original operation
+          </Button>
+          {!props.unknown ? (
+            <Button
+              variant="ghost"
+              disabled={props.readOnly}
+              onClick={props.onDismiss}
+            >
+              Dismiss failed operation
+            </Button>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function CopyAddress({
+  address,
+  label = "Copy address",
+  format = "short",
+}: {
+  address: string;
+  label?: string;
+  format?: "short" | "full" | "icon";
+}) {
+  const full = format === "full";
+  const [copied, setCopied] = useState(false);
+  const [failed, setFailed] = useState(false);
+  return (
+    <span className="inline-flex min-w-0 items-center">
+      <Button
+        variant={full ? "outline" : "ghost"}
+        size={full ? "sm" : "icon"}
+        className={
+          full
+            ? "h-auto w-full items-start justify-start whitespace-normal text-left font-mono"
+            : undefined
+        }
+        title={copied ? "Copied" : `Copy ${address}`}
+        aria-label={`${label}: ${address}${copied ? " (Copied)" : ""}`}
+        onClick={() => {
+          void navigator.clipboard.writeText(address).then(
+            () => {
+              setCopied(true);
+              setFailed(false);
+            },
+            () => setFailed(true),
+          );
+        }}
+      >
+        {copied ? <CheckIcon /> : <CopyIcon />}
+        {full ? (
+          <span data-testid="funding-address" className="min-w-0 break-all">
+            {address}
+          </span>
+        ) : null}
+      </Button>
+      {format === "short" ? (
+        <span className="font-mono" title={address}>
+          {shortAddress(address)}
+        </span>
+      ) : null}
+      {failed ? (
+        <span role="status" className="break-all">
+          Copy manually: {address}
+        </span>
+      ) : null}
+    </span>
+  );
+}
+
+function EntrySummary({
+  row,
+  disabled,
+  onSelect,
+}: {
+  row: Row;
+  disabled?: boolean;
+  onSelect: () => void;
+}) {
+  const address = (
+    <button
+      type="button"
+      className="rounded-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50"
+      title={row.address}
+      aria-label={`Send to ${shortAddress(row.address)} (${row.address})`}
+      disabled={disabled}
+      onClick={onSelect}
+    >
+      {shortAddress(row.address)}
+    </button>
+  );
+  const amount = (
+    <span className="font-medium tabular-nums">{row.amount} credits</span>
+  );
+  return (
+    <div className="flex min-w-0 items-start justify-between gap-3">
+      <p className="min-w-0 text-base sm:text-sm">
+        {row.request ? (
+          row.incoming ? (
+            <>
+              You requested {amount} from {address}
+            </>
+          ) : (
+            <>
+              {address} requested {amount} from you
+            </>
+          )
+        ) : row.incoming ? (
+          <>
+            You received {amount} from {address}
+          </>
+        ) : (
+          <>
+            You sent {address} {amount}
+          </>
+        )}
+      </p>
+      <Badge
+        variant={
+          row.request && row.state === "Pending" ? "secondary" : "outline"
+        }
+      >
+        {row.request ? row.state : "Completed"}
+      </Badge>
+    </div>
+  );
+}
+
+export function PaymentsView(props: ViewProps) {
+  const current = implementations.find(
+    (item) => item.id === props.implementation,
+  )!;
+  const dialogTrigger = useRef<HTMLElement | null>(null);
+  const [mode, setMode] = useState<"send" | "request" | null>(null);
+  const [recipient, setRecipient] = useState("");
+  const [amount, setAmount] = useState("");
+  const [reset, setReset] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<string>();
+  const activeRequest = props.pendingRequestId ?? selectedRequest;
+  const disabled = props.busy || props.readOnly || props.pending;
+  const requests = props.rows.filter(
+    (row) =>
+      row.request && (row.state === "Pending" || row.id === activeRequest),
+  );
+  function open(next: "send" | "request", address = "") {
+    dialogTrigger.current =
+      document.activeElement instanceof HTMLElement
+        ? document.activeElement
+        : null;
+    setMode(next);
+    setSelectedRequest(undefined);
+    setRecipient(address);
+    setAmount("");
+  }
+  return (
+    <div className="isolate min-h-dvh">
+      <header className="border-b py-5">
+        <div className="mx-auto grid max-w-5xl grid-cols-[1fr_auto] items-center gap-4 px-5 sm:flex sm:px-8">
+          <a
+            href={current.home}
+            aria-label="PayMVC. Homepage"
+            className="text-3xl font-semibold tracking-tight"
+          >
+            paymvc<span className="text-primary">.</span>
+          </a>
+          <div className="sm:order-last">
+            <ThemeToggle />
+          </div>
+          <div className="col-span-2 flex items-center gap-3 sm:ml-auto">
+            <label className="sr-only" htmlFor="implementation">
+              Implementation
+            </label>
+            <select
+              id="implementation"
+              name="implementation"
+              className="h-9 max-w-48 rounded-md border bg-background px-2 text-base sm:text-sm"
+              defaultValue={current.id}
+              disabled={props.busy}
+              onChange={(event) => {
+                const next = implementations.find(
+                  (item) => item.id === event.target.value,
+                );
+                if (next && next.id !== current.id)
+                  window.location.assign(next.url);
+              }}
+            >
+              {implementations.map((item) => (
+                <option key={item.id} value={item.id}>
+                  {item.name} · {item.framework}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </header>
+      <main className="mx-auto flex max-w-5xl flex-col gap-8 px-5 py-10 sm:px-8 sm:py-14">
+        {!props.ready ? (
+          <section className="mx-auto w-full max-w-md">
+            <section
+              className="flex flex-col gap-6 rounded-xl border p-6 sm:p-8"
+              aria-label="Set up your demo"
+            >
+              <div>
+                <h1 className="text-xl">Your own little payment world</h1>
+                <p className="pt-2 text-base text-muted-foreground sm:text-sm">
+                  {props.network} · {current.name} / {current.framework}
+                </p>
+              </div>
+              {!props.started ? (
+                <form
+                  onSubmit={(event) => {
+                    event.preventDefault();
+                    void props.onStart();
+                  }}
+                >
+                  <FieldGroup>
+                    <Button
+                      type="submit"
+                      disabled={props.busy || props.readOnly}
+                    >
+                      Create demo wallet{" "}
+                      <ArrowUpRightIcon data-icon="inline-end" />
+                    </Button>
+                  </FieldGroup>
+                </form>
+              ) : (
+                <div className="flex flex-col gap-5">
+                  {!props.setupStarted && !props.busy ? (
+                    <p className="text-base sm:text-sm">
+                      {props.fundingReceived
+                        ? "Funding received. Click Start demo to set up your payment world."
+                        : props.fundingAmount
+                          ? `Request at least ${props.fundingAmount} testnet ${props.nativeSymbol ?? "ETH"} for registration and transaction fees.`
+                          : "Checking the current funding budget. If the network is unavailable, try Start demo again."}
+                    </p>
+                  ) : null}
+                  <div className="flex flex-col gap-2 rounded-lg bg-muted p-4">
+                    <p className="text-base font-medium sm:text-sm">
+                      {props.setupStarted || props.fundingReceived
+                        ? "Your demo wallet"
+                        : "Wallet to fund"}
+                    </p>
+                    <CopyAddress address={props.address} format="full" />
+                  </div>
+                  <Button
+                    variant="secondary"
+                    disabled={props.busy || props.readOnly}
+                    onClick={() => void props.onStart()}
+                  >
+                    Start demo
+                  </Button>
+                  <a
+                    className="text-sm text-primary underline underline-offset-4"
+                    href={props.faucetUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                  >
+                    Open manual faucet
+                  </a>
+                </div>
+              )}
+              <Feedback {...props} />
+            </section>
+          </section>
+        ) : (
+          <>
+            <Feedback
+              {...props}
+              message=""
+              error={activeRequest || mode ? "" : props.error}
+              pending={activeRequest || mode ? false : props.pending}
+            />
+            <section className="flex flex-wrap items-center gap-x-4 gap-y-2">
+              <h1 className="text-3xl tracking-tight">
+                Your wallet{" "}
+                <span className="ml-2 font-normal" title={props.address}>
+                  {shortAddress(props.address)}
+                </span>
+              </h1>
+              <div className="flex items-center gap-2">
+                <CopyAddress address={props.address} format="icon" />
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  aria-label="Refresh"
+                  title="Refresh"
+                  disabled={props.busy}
+                  onClick={props.onRefresh}
+                >
+                  <RefreshCwIcon data-icon="inline-start" />
+                </Button>
+              </div>
+            </section>
+            <section
+              className="flex flex-wrap items-end justify-between gap-6 border-b pb-9"
+              aria-label="Balance"
+            >
+              <div className="flex flex-col gap-3">
+                <p className="text-base text-muted-foreground sm:text-sm">
+                  Demo credits
+                </p>
+                <p
+                  data-testid="balance"
+                  className="text-6xl font-medium tracking-tight tabular-nums"
+                >
+                  {props.balance ?? "—"}
+                </p>
+              </div>
+              <div className="flex gap-3">
+                <Button disabled={disabled} onClick={() => open("send")}>
+                  <ArrowUpRightIcon data-icon="inline-start" />
+                  Send
+                </Button>
+                <Button
+                  variant="secondary"
+                  disabled={disabled}
+                  onClick={() => open("request")}
+                >
+                  <ArrowDownLeftIcon data-icon="inline-start" />
+                  Request
+                </Button>
+              </div>
+            </section>
+            <section
+              className="flex flex-col gap-5"
+              aria-labelledby="contacts-title"
+            >
+              <h2 id="contacts-title" className="text-lg">
+                Your contacts
+              </h2>
+              <ul role="list" className="grid grid-cols-2 gap-4 sm:grid-cols-5">
+                {props.contacts.map((contact) => (
+                  <li
+                    key={contact.address}
+                    className="flex min-w-0 flex-col items-start gap-2"
+                  >
+                    <Button
+                      variant="ghost"
+                      className="h-auto gap-3 py-2"
+                      disabled={disabled}
+                      title={contact.address}
+                      aria-label={`Send to ${shortAddress(contact.address)} (${contact.address})`}
+                      onClick={() => open("send", contact.address)}
+                    >
+                      <CircleUserRoundIcon
+                        data-icon="inline-start"
+                        aria-hidden="true"
+                      />
+                      {shortAddress(contact.address)}
+                    </Button>
+                  </li>
+                ))}
+              </ul>
+              {props.contactsError ? (
+                <p role="alert">
+                  Contacts could not be refreshed. Try Refresh again.
+                </p>
+              ) : null}
+              {!props.contacts.length &&
+              !props.contactsLoading &&
+              !props.contactsError ? (
+                <p className="text-muted-foreground">
+                  No other registered wallets yet.
+                </p>
+              ) : null}
+              {props.hasMoreContacts || props.contactsLoading ? (
+                <Button
+                  variant="link"
+                  disabled={props.contactsLoading || disabled}
+                  onClick={props.onMoreContacts}
+                  aria-live="polite"
+                  aria-busy={props.contactsLoading}
+                >
+                  {props.contactsLoading
+                    ? "Loading contacts…"
+                    : "Load more contacts"}
+                </Button>
+              ) : null}
+            </section>
+            <Separator className="border-t bg-transparent data-[orientation=horizontal]:h-0" />
+            <div className="grid gap-10 md:grid-cols-2 md:gap-12">
+              <section
+                className="flex min-w-0 flex-col gap-7"
+                aria-labelledby="activity-title"
+              >
+                <div className="flex flex-col gap-1">
+                  <h2 id="activity-title" className="text-lg">
+                    Activity
+                  </h2>
+                  <p className="text-base text-muted-foreground sm:text-sm">
+                    Payments and requests made here.
+                  </p>
+                </div>
+                {props.rows.length ? (
+                  <ul role="list" className="divide-y divide-border">
+                    {props.rows.map((row) => (
+                      <li
+                        key={row.id}
+                        className="flex flex-col gap-3 py-4 first:pt-0"
+                        data-testid="activity-row"
+                      >
+                        <EntrySummary
+                          row={row}
+                          disabled={disabled}
+                          onSelect={() => open("send", row.address)}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {!props.rows.length ? (
+                  <p className="text-base text-muted-foreground sm:text-sm">
+                    No payments or requests yet.
+                  </p>
+                ) : null}
+                {props.hasMore ? (
+                  <Button variant="link" onClick={props.onMore}>
+                    Load more
+                  </Button>
+                ) : null}
+              </section>
+              <section
+                className="flex flex-col gap-7"
+                aria-labelledby="requests-title"
+              >
+                <div className="flex flex-col gap-1">
+                  <h2 id="requests-title" className="text-lg">
+                    Pending requests
+                  </h2>
+                  <p className="text-base text-muted-foreground sm:text-sm">
+                    Requests waiting for a response.
+                  </p>
+                </div>
+                {requests.length === 0 ? (
+                  <p className="text-base text-muted-foreground sm:text-sm">
+                    No pending requests.
+                  </p>
+                ) : (
+                  <ul role="list" className="divide-y divide-border">
+                    {requests.map((row) => (
+                      <li
+                        key={row.id}
+                        className="flex flex-col gap-3 py-4 first:pt-0"
+                        aria-label={`Request ${row.id} ${row.incoming ? "to" : "from"} ${row.address}`}
+                      >
+                        <EntrySummary
+                          row={row}
+                          disabled={disabled}
+                          onSelect={() => open("send", row.address)}
+                        />
+                        {row.id === activeRequest ? (
+                          <Feedback
+                            {...props}
+                            stale={false}
+                            readOnly={false}
+                            message={
+                              props.busy
+                                ? "Updating this request. Please wait…"
+                                : row.state === "Paid"
+                                  ? "Payment complete."
+                                  : row.state === "Declined"
+                                    ? "Request declined."
+                                    : ""
+                            }
+                          />
+                        ) : null}
+                        {row.state !== "Pending" ? null : !row.incoming ? (
+                          <div className="flex gap-3">
+                            <Button
+                              size="sm"
+                              variant="secondary"
+                              disabled={disabled}
+                              onClick={() => {
+                                setSelectedRequest(row.id);
+                                props.onResolve(row.id, "approve");
+                              }}
+                            >
+                              Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              disabled={disabled}
+                              onClick={() => {
+                                setSelectedRequest(row.id);
+                                props.onResolve(row.id, "decline");
+                              }}
+                            >
+                              Decline
+                            </Button>
+                          </div>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </section>
+            </div>
+          </>
+        )}
+        <footer className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t pt-3 text-base text-muted-foreground sm:text-sm">
+          {props.started || props.resetAvailable ? (
+            <Button
+              variant="link"
+              size="sm"
+              className="px-0"
+              disabled={props.busy || props.readOnly}
+              onClick={() => setReset(true)}
+            >
+              Reset Demo
+            </Button>
+          ) : null}
+        </footer>
+      </main>
+      <Dialog
+        open={mode !== null}
+        onOpenChange={(open) => {
+          if (!open && !props.busy) setMode(null);
+        }}
+      >
+        <DialogContent
+          onCloseAutoFocus={(event) => {
+            event.preventDefault();
+            dialogTrigger.current?.focus();
+          }}
+        >
+          <DialogHeader>
+            <DialogTitle>
+              {mode === "send" ? "Send a little" : "Make a request"}
+            </DialogTitle>
+            <DialogDescription>
+              {mode === "send"
+                ? "Send demo credits to someone in your payment world."
+                : "Ask for demo credits. Nothing moves until the payer approves."}
+            </DialogDescription>
+          </DialogHeader>
+          <ToggleGroup
+            type="single"
+            variant="outline"
+            value={mode ?? "send"}
+            aria-label="Payment action"
+            disabled={disabled}
+            onValueChange={(value) => {
+              if (value === "send" || value === "request") setMode(value);
+            }}
+          >
+            <ToggleGroupItem value="send">Send</ToggleGroupItem>
+            <ToggleGroupItem value="request">Request</ToggleGroupItem>
+          </ToggleGroup>
+          <form
+            onSubmit={(event) => {
+              event.preventDefault();
+              if (mode)
+                void props.onSubmit(mode, recipient, amount).then((ok) => {
+                  if (ok) setMode(null);
+                });
+            }}
+          >
+            <FieldGroup>
+              <Field>
+                <FieldLabel htmlFor="recipient">Recipient address</FieldLabel>
+                <Input
+                  id="recipient"
+                  name="recipient"
+                  value={recipient}
+                  onChange={(event) => setRecipient(event.target.value)}
+                  placeholder="Paste a registered wallet address"
+                  autoComplete="off"
+                  autoCapitalize="none"
+                  spellCheck={false}
+                  disabled={disabled}
+                  required
+                />
+              </Field>
+              <Field>
+                <FieldLabel htmlFor="amount">Amount</FieldLabel>
+                <Input
+                  id="amount"
+                  name="amount"
+                  inputMode="numeric"
+                  value={amount}
+                  onChange={(event) => setAmount(event.target.value)}
+                  placeholder="0"
+                  disabled={disabled}
+                  required
+                />
+              </Field>
+              {props.error ? (
+                <p
+                  role="alert"
+                  className="text-base text-destructive sm:text-sm"
+                >
+                  {props.error}
+                </p>
+              ) : null}
+              {props.busy ? (
+                <p
+                  role="status"
+                  className="text-base text-muted-foreground sm:text-sm"
+                >
+                  <RefreshCwIcon
+                    aria-hidden="true"
+                    className="mr-2 inline size-4 motion-safe:animate-spin"
+                  />
+                  {mode === "send"
+                    ? "Sending your credits. Please wait…"
+                    : "Creating your request. Please wait…"}
+                </p>
+              ) : null}
+              <Button type="submit" disabled={disabled}>
+                {mode === "send" ? "Send credits" : "Create request"}
+              </Button>
+            </FieldGroup>
+          </form>
+        </DialogContent>
+      </Dialog>
+      <Dialog open={reset} onOpenChange={setReset}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Start fresh?</DialogTitle>
+            <DialogDescription>
+              This removes access to your disposable wallet from this browser.
+              On-chain records remain. Pending transactions may still complete.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReset(false)}>
+              Keep demo
+            </Button>
+            <Button
+              onClick={() => {
+                props.onReset();
+                setReset(false);
+              }}
+            >
+              Reset and remove wallet
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}

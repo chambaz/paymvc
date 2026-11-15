@@ -1,0 +1,59 @@
+{
+  "name": "@paymvc/ethereum-foundry",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "dev": "tsx scripts/dev.ts",
+    "preview": "vite preview --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "check": "tsc --noEmit && prettier --check . && forge fmt --check && tsx scripts/validate-manifest.ts",
+    "format": "prettier --write . && forge fmt",
+    "test": "forge test && vitest run",
+    "test:e2e": "playwright test",
+    "test:visual": "docker run --rm --ipc=host --user \"$(id -u):$(id -g)\" -e HOME=/tmp -v \"$PWD\":/work -w /work mcr.microsoft.com/playwright:v1.65.0-noble npx playwright test -c playwright.visual.config.ts",
+    "test:visual:update": "npm run test:visual -- --update-snapshots=all",
+    "test:networks": "playwright test --config playwright.networks.config.ts",
+    "test:conformance": "node ../../../conformance/verify.mjs && npm run test:e2e",
+    "contracts:build": "forge build && tsx scripts/generate-abi.ts",
+    "deploy": "tsx scripts/deploy.ts",
+    "local": "tsx scripts/local.ts",
+    "test:live": "tsx scripts/live.ts",
+    "test:live:browser": "tsx scripts/live-browser.ts"
+  },
+  "dependencies": {
+    "@fontsource-variable/inter": "5.3.0",
+    "@fontsource-variable/jetbrains-mono": "5.3.0",
+    "@openzeppelin/contracts": "5.6.1",
+    "@tanstack/react-query": "5.106.1",
+    "class-variance-authority": "0.7.1",
+    "clsx": "2.1.1",
+    "lucide-react": "1.71.0",
+    "radix-ui": "1.8.1",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "tailwind-merge": "3.7.0",
+    "viem": "2.57.16",
+    "zod": "4.6.7"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.14.0",
+    "@playwright/test": "1.65.0",
+    "@tailwindcss/vite": "4.3.4",
+    "@types/node": "26.6.6",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.2.1",
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
+    "prettier": "3.9.10",
+    "tailwindcss": "4.3.4",
+    "tsx": "4.23.15",
+    "typescript": "7.0.2",
+    "vite": "8.3.6",
+    "vitest": "5.1.0"
+  }
+}

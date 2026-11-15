@@ -1,0 +1,22 @@
+{
+  "id": "sui-move",
+  "network": "Sui Testnet",
+  "framework": "Move",
+  "specVersion": "1.0.0-draft.2",
+  "status": "development",
+  "frontend": "src",
+  "deployment": "public/deployment.json",
+  "hostedUrl": null,
+  "commands": {
+    "install": "npm ci",
+    "dev": "npm run dev",
+    "build": "npm run build",
+    "test": "npm test",
+    "conformance": "npm run test:conformance",
+    "deploy": "npm run deploy"
+  },
+  "funding": "Manually fund the disposable wallet with Testnet SUI. The estimated starting budget is 0.1 SUI for registration, storage, and transaction fees.",
+  "history": "Shared application dynamic-field tables store entries keyed by sender and operation ID, directory membership, and per-user activity indexes. Native coin and address balances include external transfers.",
+  "confirmation": "Successful Sui transaction effects, bounded indexed-transaction wait, and verified application state. Saved transactions expire after the next epoch; expiry reconciliation requires retained checkpoint history and a second digest lookup.",
+  "toolchains": { "sui": "1.83.1", "node": "24.21.0", "@mysten/sui": "2.39.1" }
+}

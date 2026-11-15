@@ -1,0 +1,178 @@
+{
+  "specVersion": "1.0.0-draft.2",
+  "implementation": "ethereum-foundry",
+  "network": "robinhood",
+  "deployment": {
+    "paymvc": "0x24c7df116bc5ab93b7a047d3516855850fdd86d6",
+    "token": "0x74eE04555EC86e64A2339510122224b43f295DDD"
+  },
+  "chain": {
+    "revision": "2154757332bc94cd51ddf365d678446e093c1c6a",
+    "date": "2026-11-14T00:21:48.815Z",
+    "result": "passed",
+    "balances": {
+      "a": "85",
+      "b": "115"
+    },
+    "activity": {
+      "a": 4,
+      "b": 4
+    },
+    "transactions": [
+      {
+        "step": "a register",
+        "hash": "0xdec4a59ba1e55252f79172baa573eeebec2d2763b3eec980952746347c59ccba"
+      },
+      {
+        "step": "b register",
+        "hash": "0x6b1c5337934c987f8b679a816c70c25f18b0aca83c571665ef3518f760de7afc"
+      },
+      {
+        "step": "a send 7",
+        "hash": "0x4db34c9be919f3d35c7954de8c9a840b1dfb1e901e8942d511ba6ea11c36bdd7"
+      },
+      {
+        "step": "b request 20",
+        "hash": "0x3de50a81ceca7c395dc0811f87491b64610cd60d3ee307b3fbec79433f47d1e5"
+      },
+      {
+        "step": "a approve 20",
+        "hash": "0x3177fd954b5c364446791639110643d8ed2cee52930fec71634d3de76297615a"
+      },
+      {
+        "step": "b request 5",
+        "hash": "0x2b5a77eeb40bae25fa9ed2da97f5909f96bc21802cf74e5deeee171212653902"
+      },
+      {
+        "step": "a decline 5",
+        "hash": "0xa3211a5cfe321418d90be1f01d375da2475d356701b5c965b3e3f2c59daaec3c"
+      },
+      {
+        "step": "a request 9",
+        "hash": "0x044e40eae5a98571a8c6cdec9d7ec4b9434ba81ad197f8348edd0a77d74644f4"
+      },
+      {
+        "step": "b approve 9",
+        "hash": "0xd130d14c531a40cf3fd03d96e0e652e26198f21faf520b803d81da976ab00dad"
+      },
+      {
+        "step": "b external transfer 3",
+        "hash": "0x6ad4713d60d3d91b54589a243ba9034d6fbd3489e62df11807f7b395fbdec2db"
+      }
+    ]
+  },
+  "browser": [
+    {
+      "revision": "2154757332bc94cd51ddf365d678446e093c1c6a",
+      "date": "2026-11-14T00:22:50.393Z",
+      "viewport": "desktop",
+      "result": "passed",
+      "balances": {
+        "a": "85",
+        "b": "115"
+      },
+      "activity": {
+        "a": 4,
+        "b": 4
+      },
+      "transactions": [
+        {
+          "step": "a register",
+          "hash": "0x624bfcfb3436ff0dd07c4dfda4a56dda3aa1052767767e3d915ac0bfe97901c4"
+        },
+        {
+          "step": "b register",
+          "hash": "0x672cb104c9800ba965656745437ae7c6797bd3932d47362849d4a55485ba8ee3"
+        },
+        {
+          "step": "a send 7",
+          "hash": "0xbb069b059d58a7a3f06bcb670620e51471e0e3e0270af249cf58feade125f1c9"
+        },
+        {
+          "step": "b request 20",
+          "hash": "0xd5aaf058b5dc43076b594e724e3c6cc03a961bd43fd967761841cc8a1d5e24fe"
+        },
+        {
+          "step": "a approve 20",
+          "hash": "0x234c20d6dae3a8569c5123f9fa0a31f742703a4296c97905dc34a0a52d4f4d5b"
+        },
+        {
+          "step": "b request 5",
+          "hash": "0x84d5832321ac0fdf2767bbb83b711555b6c888a52a7ccc9b02b8b9d2d6bbd558"
+        },
+        {
+          "step": "a decline 5",
+          "hash": "0xb0538f81ee6484daaf27b1c95f85aee6a56ca4e619f8b9ae0a08ba618c38b306"
+        },
+        {
+          "step": "a request 9",
+          "hash": "0x62251d8140527c1302cdb0172f05953af20d4d6acdef91301b2bd6e00f694622"
+        },
+        {
+          "step": "b approve 9",
+          "hash": "0xba850b0e90e4a3d0b4c4f7a30fc5af8b16218b9361b91d6952950c7ae1b59b40"
+        },
+        {
+          "step": "b external transfer 3",
+          "hash": "0x007a0b9f1e49df38cb3d979ef24567ee9fa51288910bb5d811dbb4abad641094"
+        }
+      ]
+    },
+    {
+      "revision": "2154757332bc94cd51ddf365d678446e093c1c6a",
+      "date": "2026-11-14T00:23:43.274Z",
+      "viewport": "mobile",
+      "result": "passed",
+      "balances": {
+        "a": "85",
+        "b": "115"
+      },
+      "activity": {
+        "a": 4,
+        "b": 4
+      },
+      "transactions": [
+        {
+          "step": "a register",
+          "hash": "0xa029eecfc3e0aa398623eabffd963d4f95e6524bf64d3339a0b36064de20ced4"
+        },
+        {
+          "step": "b register",
+          "hash": "0x77c3cb6b132f0d47865195c977f3a464ba65f97c7b16543c67313660dae8b94c"
+        },
+        {
+          "step": "a send 7",
+          "hash": "0x09414c03515cd1e73ec0fd5f7f14bc90bbd97d2333533a8823a3fce8a1f9932b"
+        },
+        {
+          "step": "b request 20",
+          "hash": "0x91cec7b59ee0158633a9dbb20767bab03114f73f05c01d452ceaa48d106e7fcb"
+        },
+        {
+          "step": "a approve 20",
+          "hash": "0x0f19941389d5aa9f39d475912beb3478c24b1c1905c103fabd2e15df2d4805d7"
+        },
+        {
+          "step": "b request 5",
+          "hash": "0x3b6da6981f592d6cbdc4cdac06e07207b886e34139e6bfde354031aa6fa74abd"
+        },
+        {
+          "step": "a decline 5",
+          "hash": "0x5b8382994cc0e54d10a2eac634cf13e8dfcc67114206bb3e2c22a03f3d110d63"
+        },
+        {
+          "step": "a request 9",
+          "hash": "0x3a20abd47bf4c48f68b827ec4aefba27b6f76107b677a21b520bbad09d4b12e6"
+        },
+        {
+          "step": "b approve 9",
+          "hash": "0xad094aa5394dd3d760e4f51b948ce91275b20dca2fd72807b21f1c83a801dd53"
+        },
+        {
+          "step": "b external transfer 3",
+          "hash": "0x98e31cb93fd1f3c97dc3a2c08cd997053b4b23696768327ff7330f4670728d69"
+        }
+      ]
+    }
+  ]
+}

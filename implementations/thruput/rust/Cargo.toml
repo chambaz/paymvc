@@ -1,0 +1,15 @@
+[workspace]
+resolver = "3"
+members = ["contracts/*"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+publish = false
+
+# `thruput-sdk` needs `std` on the host and forbids it on the guest, so each
+# contract declares it per target with these versions.
+[workspace.dependencies]
+thruput-sdk = { version = "=0.61.1" }
+thruput-erc20-if = { version = "=0.1.75" }
+thruput-erc20-metadata-if = { version = "=0.1.75" }

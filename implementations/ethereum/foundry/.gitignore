@@ -1,0 +1,14 @@
+node_modules/
+dist/
+.env
+.env.*
+!.env.example
+.local/
+out/
+cache/
+broadcast/
+test-results/
+playwright-report/
+coverage/
+*.tsbuildinfo
+public/local.json

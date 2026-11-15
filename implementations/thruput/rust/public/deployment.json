@@ -1,0 +1,9 @@
+{
+  "network": "futurenet",
+  "networkHash": "DFizVugYrvktaiKivvCx2P1ApArLuyYmH6vN3HN7FcNT",
+  "address": "BqooyzXGU6fKomQ8AeQirzjeBmVY5reTdrsBA1vitqZL",
+  "contractHash": "2iNeRsx3kX2ek216WpqBxPF1JCtGiQBEBo4GjxTGR4pP",
+  "rpcUrl": "https://rpc.thruput.network",
+  "faucetUrl": "https://thruput-faucet.up.railway.app",
+  "explorerUrl": "https://explorer.thruput.network"
+}

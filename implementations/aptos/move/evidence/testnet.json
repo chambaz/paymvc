@@ -1,0 +1,202 @@
+{
+  "specVersion": "1.0.0-draft.2",
+  "implementation": "aptos-move",
+  "network": "testnet",
+  "deployment": {
+    "package": "0xdadd38451ec4fcbd777ca78bb59b6919c8bf214df6f80a50be6b31a8f52918f2",
+    "metadata": "0x129a2d2a107d9474cd3343fffa3c2f7bb269543bcd727ed5fcdcfcc3f35492a7"
+  },
+  "chain": {
+    "revision": "aaa5b3a897f658c02a2cc971726e29843e8d30b9",
+    "date": "2026-11-14T00:04:52.804Z",
+    "result": "passed",
+    "balances": {
+      "a": "85",
+      "b": "115"
+    },
+    "activity": {
+      "a": 4,
+      "b": 4
+    },
+    "transactions": [
+      {
+        "step": "fund-a",
+        "hash": "0x1d22441d2997af695ea000cad582aec9de1c7599821d021b174565690f280884"
+      },
+      {
+        "step": "register-a",
+        "hash": "0x650925594e23b8fc5de98a1fba6c57510aa360e23122aa79ec81a2bbc5c9c5e5"
+      },
+      {
+        "step": "fund-b",
+        "hash": "0x15f021ce31d2eafc98f8fa38e440fe6d692bcf4376be1e068ca1eee35cd6ca73"
+      },
+      {
+        "step": "register-b",
+        "hash": "0x440287d894625dae54cca78fb6cb9f1e06de61c9e0818c7bda6aa36c2b776e27"
+      },
+      {
+        "step": "send7",
+        "hash": "0xe7087b59e97fababbc944d4fe71699892cd35f923b95365b64510de58a5d4754"
+      },
+      {
+        "step": "request20",
+        "hash": "0x63a0291cb6389a69ddd7a119eb61e80068fbfae95b014a48c464e61253639baa"
+      },
+      {
+        "step": "approve20",
+        "hash": "0xabc7b8ff5b57ef5e28db787544100b631192bb5a130e5fb94dc1353eded8c713"
+      },
+      {
+        "step": "request5",
+        "hash": "0xaafd7aa930e2d9d81b1640a8ed9da1711dd5fe2229553463b2686c0be7c00034"
+      },
+      {
+        "step": "decline5",
+        "hash": "0xd6ac6ac1e076d58a0c7504708fce86e6b67a460f59d99ea12a92a2854322b651"
+      },
+      {
+        "step": "request9",
+        "hash": "0x7d7f9765469da262f8e62b2d661d84d9a199dc2e5d470bbe1a3cfba7c9c006dc"
+      },
+      {
+        "step": "approve9",
+        "hash": "0x60274043831085c19498617565499551cb537842bf87e042f996bc2a7141a3ea"
+      },
+      {
+        "step": "external3",
+        "hash": "0x2d0f98bd9df70cae6c22018da2469053eee1ce638d679dfa8014694e473a1fc1"
+      }
+    ]
+  },
+  "browser": [
+    {
+      "revision": "98931b23e5320bd81028c46b44fdad29921825ab",
+      "date": "2026-11-14T01:19:49.766Z",
+      "result": "passed",
+      "balances": {
+        "a": "85",
+        "b": "115"
+      },
+      "activity": {
+        "a": 4,
+        "b": 4
+      },
+      "transactions": [
+        {
+          "step": "fund-a",
+          "hash": "0x71e8fdd311aa6101af4eb8e4ecc3202177ee26ab4ea51898c53b97b8f140cb87"
+        },
+        {
+          "step": "register-a",
+          "hash": "0xa34a1eb574075d0f4e23d342fdd1030ca1b73ac1c1abd6a7f946907c64ffce31"
+        },
+        {
+          "step": "fund-b",
+          "hash": "0x88f993cf9583245a0751e40f85953be4b2da05fc073b0dbb333efcbe5b8f0894"
+        },
+        {
+          "step": "register-b",
+          "hash": "0x398b4f85aa4320930fd6467ad6600d21d953b4c9d9a659c9b9cf9602aff56499"
+        },
+        {
+          "step": "send7",
+          "hash": "0x6e92446ef1c5c14efaebd01e056f4e35f4381f4d93d7114d7e7da5f71170ece0"
+        },
+        {
+          "step": "request20",
+          "hash": "0x70c8c11ff2016e7b8ba6f98c5f3bcbace29f1c7e809c71606b006cd5bfd4eaf8"
+        },
+        {
+          "step": "approve20",
+          "hash": "0xa4dd652670a33f48621d37877b2f4921f9638bc9a460c7afcee05b974db551ea"
+        },
+        {
+          "step": "request5",
+          "hash": "0x4b16d32dcc9b2c2f5092ca493e5886ae0d6bdbebddbceb8bbe9536e646035fa7"
+        },
+        {
+          "step": "decline5",
+          "hash": "0x4b7fd001628751d5730908bb6ded1e1ea614626c7cfa57133145468f82576447"
+        },
+        {
+          "step": "request9",
+          "hash": "0xa21754c84da6f7079b1906824708d3f8deff2e9704dc5fd24bf8041762ee0fc3"
+        },
+        {
+          "step": "approve9",
+          "hash": "0x09783451350bb21b36dd40a4285c08fcaa8e8e7c9fb33865787eaa83555fe602"
+        },
+        {
+          "step": "external3",
+          "hash": "0x2a94de1265e6d938aa520ce165e9edda983c03e47e328232137e0378074dfe68"
+        }
+      ],
+      "viewport": "desktop"
+    },
+    {
+      "revision": "98931b23e5320bd81028c46b44fdad29921825ab",
+      "date": "2026-11-14T01:20:16.458Z",
+      "result": "passed",
+      "balances": {
+        "a": "85",
+        "b": "115"
+      },
+      "activity": {
+        "a": 4,
+        "b": 4
+      },
+      "transactions": [
+        {
+          "step": "fund-a",
+          "hash": "0x4f5e678454810aae0fdb9e7b958ce5e72e6e8bd5828b378dff3f76788aef2764"
+        },
+        {
+          "step": "register-a",
+          "hash": "0xf787f8fb040fb64db3f2d92b3c10691dd2c3fc0e96fb224bb06c890deeaa2d9e"
+        },
+        {
+          "step": "fund-b",
+          "hash": "0xf9ecef267489d1b71c488dd26d1a40ac71a92de118b262c0df28519866fd155f"
+        },
+        {
+          "step": "register-b",
+          "hash": "0xbbb0ab54ae756fa5d5012c54d7e6da194c4be1a82e7c15441dd0eb85dfde7b45"
+        },
+        {
+          "step": "send7",
+          "hash": "0xaa7523f1cdefe44fe3a5cbff2eb9e9dc00394efc6a181cdee7bc4ebbf4725c3b"
+        },
+        {
+          "step": "request20",
+          "hash": "0xff26a39801431e1c48125c5982913a9ee686a3fd045c8b7b4317bf620df33590"
+        },
+        {
+          "step": "approve20",
+          "hash": "0x7779454eb7834855913d5f9856055c81931ec488197c17230c503dbcd61fdd9d"
+        },
+        {
+          "step": "request5",
+          "hash": "0x6016775991fc6096cd2328a1e48b44fd8155781aef1c85a889571a5ef6295202"
+        },
+        {
+          "step": "decline5",
+          "hash": "0x4af37290801af4e75318bb4590791ca779075518fbf7361a2b155510e08a16f1"
+        },
+        {
+          "step": "request9",
+          "hash": "0x6145aae97b1798fe97072ba10744cb1a5754db913ac2904edc6f716f548b8a81"
+        },
+        {
+          "step": "approve9",
+          "hash": "0x9bbf9c5f3994741de60fa9cb9af79003c82cc9c3582e4d08c7b3113f77b8a0e8"
+        },
+        {
+          "step": "external3",
+          "hash": "0x27f7590c2d5b84d70d21263045f0ee57d315069876c8408e76d3bb695f17d16b"
+        }
+      ],
+      "viewport": "mobile"
+    }
+  ]
+}
