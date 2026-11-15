@@ -21,14 +21,24 @@ The project landing page is in [`web/`](web/README.md). It has no chain code and
 
 ## Try it
 
-Use Node 24 and Foundry 1.7.1. From this repository:
+Each implementation runs on its own from its folder. For example, Ethereum needs Node 24 and Foundry 1.7.1:
 
 ```sh
-npm run install:ethereum
+cd implementations/ethereum/foundry
+npm ci
 npm run dev
 ```
 
 Open <http://127.0.0.1:5173>. Select **Create demo wallet**, copy your address, get Sepolia ETH from the linked faucet, then select **Start demo**. Registration gives you 100 credits. Send credits to another registered address, or request a payment. Use a second browser profile for a second user.
+
+To run the landing page on <http://127.0.0.1:5170>:
+
+```sh
+npm --prefix web ci
+npm run web
+```
+
+`npm run verify` checks that the shared files are identical in every implementation.
 
 To run another implementation, follow its README. Start each frontend that you want the implementation selector to reach.
 
