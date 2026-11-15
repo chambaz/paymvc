@@ -72,6 +72,7 @@ Follow [transaction recovery](recovery.md). Save each signed transaction before 
 - Commit the public deployment record (for example `public/deployment.json`). Never commit keys.
 - Verify the deployment in the browser before the first write: network identity, contract code, and token settings.
 - Link a faucet. If the faucet needs sign-in or has limits, say so in your README.
+- Add `railpack.json` with `"provider": "node"`. The hosted site is the static frontend build, so contract files such as `Cargo.toml` must not change how it builds.
 
 ### 5. Add the chain to the selector
 
