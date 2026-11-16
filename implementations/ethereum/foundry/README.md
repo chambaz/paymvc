@@ -31,7 +31,7 @@ Click **Start demo**. Registration allocates 100 credits and adds the address to
 
 One production build contains all four public deployment records. `?network=base` selects Base on any origin. Without it, a network subdomain selects the network, so `base.paymvc.com` opens Base; other hosts use the build default (Ethereum). The same applies to the other names. The selected deployment must match the chain ID. The local launcher explicitly selects `public/local.json`; production builds exclude that Anvil configuration.
 
-The dropdown links all nine networks. The local default ports are: Ethereum 5173, Solana 5175, Base 5177, Monad 5179, Stellar 5181, Sui 5183, Aptos 5185, Robinhood 5187, and Thruput 5189. Start each frontend that you want to reach; all EVM frontends run from this folder. `VITE_ETHEREUM_URL`, `VITE_BASE_URL`, `VITE_MONAD_URL`, and `VITE_ROBINHOOD_URL` point the dropdown at hosted sites instead, either one subdomain per network (as paymvc.com does) or one origin with the matching `?network=` parameter. Equivalent URL settings exist for the other implementations.
+The dropdown links all nine networks. The local default ports are: Ethereum 5173, Solana 5175, Base 5177, Monad 5179, Stellar 5181, Sui 5183, Aptos 5185, Robinhood 5187, and Thruput 5189. Start each frontend that you want to reach; all EVM frontends run from this folder. `VITE_ETHEREUM_URL`, `VITE_BASE_URL`, `VITE_MONAD_URL`, and `VITE_ROBINHOOD_URL` point the dropdown at hosted sites instead, either one subdomain per network (as paymvc.com does) or one origin with the matching `?network=` parameter. Equivalent URL settings exist for the other implementations. `VITE_LANDING_URL` sets the logo link to the landing page (default <http://127.0.0.1:5170>).
 
 ## Architecture
 

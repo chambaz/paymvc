@@ -24,14 +24,16 @@ import {
 import { Separator } from "./ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
 
+/** The project landing page, linked from the logo. */
+const landingUrl = import.meta.env.VITE_LANDING_URL || "http://127.0.0.1:5170";
+
 /**
- * Every implementation, in selector order. `home` is this app's own start page;
- * `url` opens another implementation. Hosted builds set the VITE_*_URL variables.
+ * Every implementation, in selector order. `url` opens that implementation.
+ * Hosted builds set the VITE_*_URL variables.
  */
 export const implementations = [
   {
     id: "ethereum",
-    home: "/?network=ethereum",
     name: "Ethereum",
     framework: "Foundry",
     url:
@@ -40,14 +42,12 @@ export const implementations = [
   },
   {
     id: "base",
-    home: "/?network=base",
     name: "Base",
     framework: "Foundry",
     url: import.meta.env.VITE_BASE_URL || "http://127.0.0.1:5177?network=base",
   },
   {
     id: "robinhood",
-    home: "/?network=robinhood",
     name: "Robinhood",
     framework: "Foundry",
     url:
@@ -56,7 +56,6 @@ export const implementations = [
   },
   {
     id: "monad",
-    home: "/?network=monad",
     name: "Monad",
     framework: "Foundry",
     url:
@@ -64,35 +63,30 @@ export const implementations = [
   },
   {
     id: "solana",
-    home: "/",
     name: "Solana",
     framework: "Anchor",
     url: import.meta.env.VITE_SOLANA_URL || "http://127.0.0.1:5175",
   },
   {
     id: "sui",
-    home: "/",
     name: "Sui",
     framework: "Move",
     url: import.meta.env.VITE_SUI_URL || "http://127.0.0.1:5183",
   },
   {
     id: "aptos",
-    home: "/",
     name: "Aptos",
     framework: "Move",
     url: import.meta.env.VITE_APTOS_URL || "http://127.0.0.1:5185",
   },
   {
     id: "stellar",
-    home: "/",
     name: "Stellar",
     framework: "Soroban",
     url: import.meta.env.VITE_STELLAR_URL || "http://127.0.0.1:5181",
   },
   {
     id: "thruput",
-    home: "/",
     name: "Thruput",
     framework: "Rust",
     url: import.meta.env.VITE_THRUPUT_URL || "http://127.0.0.1:5189",
@@ -371,7 +365,7 @@ export function PaymentsView(props: ViewProps) {
       <header className="border-b py-5">
         <div className="mx-auto grid max-w-5xl grid-cols-[1fr_auto] items-center gap-4 px-5 sm:flex sm:px-8">
           <a
-            href={current.home}
+            href={landingUrl}
             aria-label="PayMVC. Homepage"
             className="text-3xl font-semibold tracking-tight"
           >

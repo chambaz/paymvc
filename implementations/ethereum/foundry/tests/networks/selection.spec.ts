@@ -1,19 +1,11 @@
 import { test, expect } from "@playwright/test";
 import { networks } from "../../src/networks";
 
-test("the homepage link retains the selected EVM network", async ({ page }) => {
+test("the logo links to the landing page", async ({ page }) => {
   await page.goto("/?network=base");
-  await page
-    .getByRole("button", { name: "Create demo wallet", exact: true })
-    .click();
-  const address = await page.getByTestId("funding-address").innerText();
-  await page
-    .getByRole("link", { name: "PayMVC. Homepage", exact: true })
-    .click();
-  await expect(page.getByLabel("Implementation", { exact: true })).toHaveValue(
-    "base",
-  );
-  await expect(page.getByTestId("funding-address")).toHaveText(address);
+  await expect(
+    page.getByRole("link", { name: "PayMVC. Homepage", exact: true }),
+  ).toHaveAttribute("href", "http://127.0.0.1:5170");
 });
 
 test("one frontend restores isolated wallets for all four networks", async ({
