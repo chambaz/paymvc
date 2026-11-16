@@ -1,24 +1,19 @@
 import { test, expect, type Page } from "@playwright/test";
-import {
-  mkdirSync,
-  readFileSync,
-  writeFileSync,
-  existsSync,
-  renameSync,
-} from "node:fs";
-import { execFileSync } from "node:child_process";
-import { addressFromBase58, gasAmount } from "@thruputchain/client";
-import { NATIVE_TOKEN_ADDRESS } from "@thruputchain/protocol";
-import { ERC20 } from "../../src/chain/generated/credits";
+import { readFileSync } from "node:fs";
 import { parseDeployment, deploymentKey } from "../../src/chain/config";
+import { readDashboard } from "../../src/chain/payments";
+import { loadSession, accountFor, type Session } from "../../src/chain/session";
 import {
-  newSession,
-  loadSession,
-  accountFor,
-  type Session,
-} from "../../src/chain/session";
-import { verifyDeployment } from "../../src/chain/payments";
-import { transact } from "../../src/chain/transactions";
+  failureText,
+  writeEvidence,
+  type Viewport,
+} from "../../scripts/evidence";
+import {
+  fund,
+  funderSession,
+  save,
+  transferCredits,
+} from "../../scripts/transfers";
 import { canonicalScenario, type User } from "../conformance/scenario";
 
 // The default suite uses the local node from `npm run local`. LIVE=1 uses Futurenet.
@@ -54,39 +49,30 @@ test("selector retains all nine networks and links the other implementations", a
     await request;
   }
 });
-mkdirSync(".local", { recursive: true, mode: 0o700 });
-function save(path: string, value: unknown) {
-  writeFileSync(`${path}.tmp`, JSON.stringify(value), { mode: 0o600 });
-  renameSync(`${path}.tmp`, path);
+const funderPath = `.local/browser-funder-${c.networkHash}-${c.address}.json`;
+
+type RpcMessage = { id?: unknown; method?: string; result?: unknown };
+const messages = (body: unknown): RpcMessage[] =>
+  (Array.isArray(body) ? body : [body]).filter(
+    (message) => typeof message === "object" && message !== null,
+  );
+/** The JSON-RPC IDs of the `sendTransaction` calls in a request body. */
+function sendIds(body: string | null) {
+  if (!body?.includes('"sendTransaction"')) return new Set<unknown>();
+  return new Set(
+    messages(JSON.parse(body))
+      .filter((message) => message.method === "sendTransaction")
+      .map((message) => message.id),
+  );
 }
-async function fund(address: string) {
-  const path = `.local/browser-funder-${c.networkHash}-${c.address}.json`;
-  // The deploy script's private CLI key. Its first 32 bytes are the seed.
-  const deployer = JSON.parse(
-    readFileSync(
-      `.local/${network}-cli/thruput/keys/${network}-deployer.json`,
-      "utf8",
-    ),
-  );
-  const s: Session = existsSync(path)
-    ? JSON.parse(readFileSync(path, "utf8"))
-    : { ...newSession(c), key: `0x${deployer.keypair_hex.slice(0, 64)}` };
-  await transact(
-    c,
-    s,
-    await verifyDeployment(c),
-    `fund:${address}`,
-    [
-      ERC20.v0_1.transfer.invocation(
-        NATIVE_TOKEN_ADDRESS,
-        gasAmount(1_000_000n),
-        { receiver: addressFromBase58(address), amount: 200_000_000n },
-      ),
-    ],
-    () => save(path, s),
-    () => {},
-    async () => false, // Never replace a funding transfer.
-  );
+/** The transaction hashes that the RPC returned for `ids`. */
+function sentHashes(body: unknown, ids: Set<unknown>) {
+  return messages(body).flatMap((message) => {
+    const result = message.result as { transactionHash?: unknown } | undefined;
+    return ids.has(message.id) && typeof result?.transactionHash === "string"
+      ? [result.transactionHash]
+      : [];
+  });
 }
 test("canonical independent-user scenario, external transfer, reload, and reset", async ({
   browser,
@@ -95,18 +81,44 @@ test("canonical independent-user scenario, external transfer, reload, and reset"
   const b = await browser.newContext({ viewport: info.project.use.viewport });
   const pages = { a: await a.newPage(), b: await b.newPage() };
   const addresses: Record<User, string> = { a: "", b: "" };
-  const hashes = new Set<string>();
+  // The original wallets, kept after a reset to read the final state.
+  const sessions: Partial<Record<User, Session>> = {};
+  // Transaction hashes in scenario order.
+  const transactions: { step: string; hash: string }[] = [];
   const snapshot = async (user: User) => {
     const raw = await pages[user].evaluate(
       (key) => localStorage.getItem(key)!,
       deploymentKey(c),
     );
     const session = loadSession(c, { getItem: () => raw })!;
-    save(`.local/browser-${accountFor(session).address}.json`, session);
-    for (const record of Object.values(session.journal))
-      hashes.add(record.hash);
+    const address = accountFor(session).address;
+    save(`.local/browser-${address}.json`, session);
+    if (address === addresses[user]) sessions[user] = session;
     return session;
   };
+  // The app deletes a payment's saved transaction once its effect is
+  // verified, so the hashes come from the page's `sendTransaction` calls.
+  const submitted: Record<User, Promise<string[]>[]> = { a: [], b: [] };
+  for (const user of ["a", "b"] as const)
+    pages[user].on("response", (response) => {
+      const ids = sendIds(response.request().postData());
+      if (ids.size)
+        submitted[user].push(
+          response.json().then(
+            (body) => sentHashes(body, ids),
+            () => [],
+          ),
+        );
+    });
+  /** Save the session and record its new transactions under `step`. */
+  const record = async (user: User, step: string) => {
+    await snapshot(user);
+    for (const hash of (await Promise.all(submitted[user].splice(0))).flat())
+      if (!transactions.some((t) => t.hash === hash))
+        transactions.push({ step, hash });
+  };
+  let pending = "";
+  let failure: unknown;
   try {
     await canonicalScenario({
       start: async (user) => {
@@ -117,11 +129,18 @@ test("canonical independent-user scenario, external transfer, reload, and reset"
           .click();
         addresses[user] = await page.getByTestId("funding-address").innerText();
         await snapshot(user);
-        await fund(addresses[user]);
+        const funder = funderSession(c, network, funderPath);
+        transactions.push({
+          step: `fund-${user}`,
+          hash: await fund(c, funder, addresses[user], () =>
+            save(funderPath, funder),
+          ),
+        });
         await page
           .getByRole("button", { name: "Start demo", exact: true })
           .click();
         await expect(page.getByTestId("balance")).toHaveText("100");
+        await record(user, `register-${user}`);
       },
       payment: async (user, action, amount) => {
         const page = pages[user];
@@ -139,7 +158,8 @@ test("canonical independent-user scenario, external transfer, reload, and reset"
           })
           .click();
         await expect(dialog).not.toBeVisible();
-        await snapshot(user);
+        if (action === "Request") pending = amount;
+        await record(user, `${action.toLowerCase()}${amount}`);
       },
       resolve: async (user, action) => {
         const page = pages[user];
@@ -150,7 +170,7 @@ test("canonical independent-user scenario, external transfer, reload, and reset"
         await expect(
           page.getByRole("button", { name: action, exact: true }),
         ).toHaveCount(0);
-        await snapshot(user);
+        await record(user, `${action.toLowerCase()}${pending}`);
       },
       expectState: async (user, balance, count) => {
         await pages[user]
@@ -167,22 +187,12 @@ test("canonical independent-user scenario, external transfer, reload, and reset"
       },
       externalTransfer: async () => {
         const s = await snapshot("b");
-        await transact(
-          c,
-          s,
-          await verifyDeployment(c),
-          "external:3",
-          [
-            ERC20.v0_1.transfer.invocation(
-              addressFromBase58(c.credits),
-              gasAmount(1_000_000n),
-              { receiver: addressFromBase58(addresses.a), amount: 3n },
-            ),
-          ],
-          () => save(`.local/browser-${info.project.name}-b.json`, s),
-          () => {},
-          async () => false, // Never replace the external transfer.
-        );
+        transactions.push({
+          step: "external3",
+          hash: await transferCredits(c, s, addresses.a, 3n, () =>
+            save(`.local/browser-${addresses.b}.json`, s),
+          ),
+        });
         await pages.b.evaluate(
           ({ key, raw }) => localStorage.setItem(key, raw),
           { key: deploymentKey(c), raw: JSON.stringify(s) },
@@ -204,55 +214,34 @@ test("canonical independent-user scenario, external transfer, reload, and reset"
         );
       },
     });
-    // Only public runs produce evidence.
-    if (live) {
-      mkdirSync("evidence", { recursive: true });
-      writeFileSync(
-        `evidence/browser-${info.project.name}.json`,
-        JSON.stringify(
-          {
-            spec: "1.0.0-draft.2",
-            network: c.network,
-            networkHash: c.networkHash,
-            address: c.address,
-            revision: execFileSync("git", ["rev-parse", "HEAD"], {
-              encoding: "utf8",
-            }).trim(),
-            dirty: Boolean(
-              execFileSync(
-                "git",
-                [
-                  "status",
-                  "--porcelain",
-                  "--untracked-files=all",
-                  "--",
-                  "src",
-                  "scripts",
-                  "tests",
-                  "public",
-                  "contracts",
-                  "Cargo.toml",
-                  "Cargo.lock",
-                  "package.json",
-                  "package-lock.json",
-                  "vite.config.ts",
-                  "playwright.config.ts",
-                ],
-                { encoding: "utf8" },
-              ).trim(),
-            ),
-            verifiedAt: new Date().toISOString(),
-            viewport: info.project.use.viewport,
-            addresses,
-            balances: ["85", "115"],
-            activity: [4, 4],
-            transactions: [...hashes],
-          },
-          null,
-          2,
-        ) + "\n",
+  } catch (error) {
+    failure = error;
+  }
+  try {
+    // Record what the chain shows now, for a pass or a failure.
+    if (sessions.a && sessions.b) {
+      const height = [sessions.a, sessions.b]
+        .map((s) => BigInt(s.stateHeight))
+        .reduce((x, y) => (x > y ? x : y))
+        .toString();
+      const [x, y] = await Promise.all([
+        readDashboard(c, { ...sessions.a, stateHeight: height }),
+        readDashboard(c, { ...sessions.b, stateHeight: height }),
+      ]);
+      writeEvidence(
+        c,
+        !live,
+        {
+          result: failure ? "failed" : "passed",
+          ...(failure ? { failure: failureText(failure) } : {}),
+          balances: { a: x.balance.toString(), b: y.balance.toString() },
+          activity: { a: Number(x.count), b: Number(y.count) },
+          transactions,
+        },
+        info.project.name as Viewport,
       );
     }
+    if (failure) throw failure;
   } finally {
     for (const user of ["a", "b"] as const)
       if (addresses[user]) await snapshot(user).catch(() => {});

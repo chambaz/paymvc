@@ -13,6 +13,8 @@
  * disposable, so a local deployment always starts over.
  */
 import { readFileSync, renameSync, writeFileSync } from "node:fs";
+import { parseDeployment } from "../src/chain/config";
+import { verifyDeployment } from "../src/chain/payments";
 import { CliError, cliConfig, ensureKey, thruput as run } from "./cli";
 
 const local = process.argv.includes("--local");
@@ -144,6 +146,11 @@ const record = {
   faucetUrl: "https://thruput-faucet.up.railway.app",
   explorerUrl: "https://explorer.thruput.network",
 };
+// Check the record as the app does: the network hash, both code hashes,
+// PayMVC's token, and the token's zero decimals. The local record's proxy is
+// not running yet, so the check reads the node directly.
+await verifyDeployment(parseDeployment({ ...record, rpcUrl }));
+console.log("Verified the deployment record.");
 const recordPath = local ? "public/local.json" : "public/deployment.json";
 writeFileSync(recordPath, JSON.stringify(record, null, 2) + "\n");
 console.log("Credits:", credits.address, "transaction:", credits.txHash);

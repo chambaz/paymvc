@@ -18,7 +18,8 @@
     "deploy": "tsx scripts/deploy.ts",
     "local": "tsx scripts/local.ts",
     "test:conformance": "node ../../../conformance/verify.mjs",
-    "test:live:browser": "LIVE=1 playwright test",
+    "test:live": "tsx scripts/live.ts",
+    "test:live:browser": "LIVE=1 playwright test --grep canonical",
     "test:e2e": "playwright test"
   },
   "dependencies": {
@@ -46,6 +47,7 @@
     "@types/react-dom": "19.3.0",
     "@vitejs/plugin-react": "6.2.1",
     "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
     "prettier": "3.9.10",
     "tailwindcss": "4.3.4",
     "tsx": "4.23.15",

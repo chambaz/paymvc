@@ -25,8 +25,8 @@ jobs:
       - name: Install Thruput CLI
         working-directory: ${{ runner.temp }}
         run: |
-          cargo install thruput --version 0.45.0 --locked
-          thruput --version | grep -F "thruput 0.45.0"
+          cargo install thruput --version 0.45.2 --locked
+          thruput --version | grep -F "thruput 0.45.2"
       # The CLI's default verified hog-devnode bundle. It needs GLIBC 2.38 and
       # GLIBCXX 3.4.32, which Ubuntu 24.04 provides.
       - name: Install local node runtime

@@ -1,6 +1,6 @@
 # Thruput / Rust
 
-A standalone browser-to-contract payments demo on Thruput. It uses Thruput CLI 0.45.0, the Rust SDK 0.61.1, the standard ERC-20 interfaces 0.1.75, and the `@thruputchain/client` 0.26.0 TypeScript client. Each session controls one disposable wallet.
+A standalone browser-to-contract payments demo on Thruput. It uses Thruput CLI 0.45.2, the Rust SDK 0.61.1, the standard ERC-20 interfaces 0.1.75, and the `@thruputchain/client` 0.26.0 TypeScript client. Each session controls one disposable wallet.
 
 ## 1. Run
 
@@ -142,13 +142,13 @@ npm run contracts:build
 npm run deploy
 ```
 
-The script runs the CLI with a private configuration in `.local/futurenet-cli/`. It holds the dedicated deployer key and a profile pinned to the RPC's network hash. Without enough native tokens, the script prints the deployer address and stops before broadcasting. Each CLI result is saved in `.local/futurenet-cli/deployment.json`, so a rerun resumes after the last completed step. If the CLI reports an uncertain outcome, inspect it with `thruput tx show` before rerunning: a new deploy uses a new nonce and address. After both steps, the script writes `public/deployment.json`.
+The script runs the CLI with a private configuration in `.local/futurenet-cli/`. It holds the dedicated deployer key and a profile pinned to the RPC's network hash. Without enough native tokens, the script prints the deployer address and stops before broadcasting. Each CLI result is saved in `.local/futurenet-cli/deployment.json`, so a rerun resumes after the last completed step. If the CLI reports an uncertain outcome, inspect it with `thruput tx show` before rerunning: a new deploy uses a new nonce and address. After both steps, the script checks the record as the app does (network hash, both code hashes through `getContractDeployment`, PayMVC's `credits()`, and zero token decimals), then writes `public/deployment.json`.
 
 For local development, use `npm run local`. It starts the node, then runs `npm run deploy -- --local`, which signs with the private configuration in `.local/local-cli/`. A local chain is disposable, so a local deployment always starts over. The node sends no CORS headers, so the local record points the app at the development server's same-origin proxy, `/thruput-rpc` (`vite.config.ts`). Local deployments are not public demos.
 
 ## 7. Verification
 
-Install the CLI with `cargo install thruput --version 0.45.0 --locked`, then install its default local runtime with `thruput toolchain install`. The runtime needs GLIBC 2.38 or later, for example Ubuntu 24.04, and these shared libraries: jemalloc, snappy, brotli, lz4, zstd, bzip2, and libatomic. On Ubuntu: `sudo apt-get install libjemalloc2 libsnappy1v5 libbrotli1 liblz4-1 libzstd1 libbz2-1.0 libatomic1`. Check with `ldd "$(thruput toolchain which)"`. `rust-toolchain.toml` pins Rust nightly `2026-07-01`. Keep `.cargo/` and the host and guest features together.
+Install the CLI with `cargo install thruput --version 0.45.2 --locked`, then install its default local runtime with `thruput toolchain install`. The runtime needs GLIBC 2.38 or later, for example Ubuntu 24.04, and these shared libraries: jemalloc, snappy, brotli, lz4, zstd, bzip2, and libatomic. On Ubuntu: `sudo apt-get install libjemalloc2 libsnappy1v5 libbrotli1 liblz4-1 libzstd1 libbz2-1.0 libatomic1`. Check with `ldd "$(thruput toolchain which)"`. `rust-toolchain.toml` pins Rust nightly `2026-07-01`. Keep `.cargo/` and the host and guest features together.
 
 ```sh
 npm run check
@@ -163,13 +163,16 @@ npm run test:conformance
 
 Browser tests in `tests/e2e/` run against a local node. Playwright starts `npm run local` and the tests read `public/local.json`; they never contact Futurenet. The canonical scenario runs on desktop and mobile with real transactions. The tests fund each user from the local deployer key. Traces are off to keep keys out of artifacts. `npm run test:conformance` compares the test snapshots with `conformance/` in the parent repository.
 
-Public funded browser acceptance is explicit:
+Public funded acceptance is explicit:
 
 ```sh
-npm run test:live:browser
+npm run test:live           # the canonical scenario with chain calls only
+npm run test:live:browser   # the canonical scenario in the browser, desktop and mobile
 ```
 
-It funds separate user wallets from the deployer key in `.local/futurenet-cli/`, saving each wallet before funding. It runs the canonical scenario on desktop and mobile. Private sessions and signed journals stay in `.local/`. Public evidence contains only addresses and hashes.
+Both commands fund new users A and B with 20 native tokens each from the deployer key in `.local/futurenet-cli/`, saving each wallet before funding. A full run (chain plus both viewports) funds six users, so it needs 120 native tokens. Signed transactions are saved before broadcast. `npm run test:live` keeps its sessions and completed steps in `.local/live-<network hash>-<PayMVC address>/`, so a rerun reconciles the saved transactions and continues after the last completed step. `LOCAL=1 npm run test:live` runs the same scenario against the node from `npm run local`.
+
+Each command records its result in `evidence/futurenet.json`, in the format of `evidence.schema.json`: the deployment, the tested commit, the final balances and activity counts of A and B, and the transaction hashes in scenario order. `npm run test:live` writes the `chain` section and `npm run test:live:browser` one `browser` entry per viewport. A run keeps the other sections if the deployment is the same. Run live tests from a clean working tree: if `git status --porcelain -- . ':!evidence'` shows changes, or the run is local, the result goes to `.local/evidence-<network>.json` instead. `npm run check` validates every file in `evidence/`. Private sessions and signed transactions stay in `.local/`.
 
 ## 8. References
 
