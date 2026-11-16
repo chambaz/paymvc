@@ -19,6 +19,13 @@ export const deploymentKey = (c: Deployment) =>
 export const server = (c: Pick<Deployment, "network" | "rpcUrl">) =>
   new SuiGrpcClient({ network: c.network, baseUrl: c.rpcUrl });
 export const coinType = (c: Deployment) => `${c.package}::credits::CREDITS`;
-/** Format exact MIST as SUI without floating point, for example 100000000n → "0.100000000". */
-export const formatNative = (_c: Deployment, mist: bigint) =>
-  `${mist / MIST_PER_SUI}.${(mist % MIST_PER_SUI).toString().padStart(9, "0")}`;
+/** Format exact MIST as SUI without floating point or trailing zeros, for example 100000000n → "0.1". */
+export const formatNative = (_c: Deployment, mist: bigint) => {
+  const fraction = (mist % MIST_PER_SUI)
+    .toString()
+    .padStart(9, "0")
+    .replace(/0+$/, "");
+  return fraction
+    ? `${mist / MIST_PER_SUI}.${fraction}`
+    : `${mist / MIST_PER_SUI}`;
+};

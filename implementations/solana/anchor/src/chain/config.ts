@@ -80,6 +80,13 @@ export async function pda(
   )[0];
 }
 const LAMPORTS_PER_SOL = 1_000_000_000n;
-/** Format exact lamports as SOL without floating point, for example 50000000n → "0.050000000". */
-export const formatNative = (_c: Deployment, lamports: bigint) =>
-  `${lamports / LAMPORTS_PER_SOL}.${(lamports % LAMPORTS_PER_SOL).toString().padStart(9, "0")}`;
+/** Format exact lamports as SOL without floating point or trailing zeros, for example 50000000n → "0.05". */
+export const formatNative = (_c: Deployment, lamports: bigint) => {
+  const fraction = (lamports % LAMPORTS_PER_SOL)
+    .toString()
+    .padStart(9, "0")
+    .replace(/0+$/, "");
+  return fraction
+    ? `${lamports / LAMPORTS_PER_SOL}.${fraction}`
+    : `${lamports / LAMPORTS_PER_SOL}`;
+};

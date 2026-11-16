@@ -52,6 +52,13 @@ export async function latestLedger(c: Pick<Deployment, "rpcUrl" | "network">) {
   return data;
 }
 const OCTAS_PER_APT = 100_000_000n;
-/** Format exact octas as APT without floating point, for example 10000000n → "0.10000000". */
-export const formatNative = (_c: Deployment, octas: bigint) =>
-  `${octas / OCTAS_PER_APT}.${(octas % OCTAS_PER_APT).toString().padStart(8, "0")}`;
+/** Format exact octas as APT without floating point or trailing zeros, for example 10000000n → "0.1". */
+export const formatNative = (_c: Deployment, octas: bigint) => {
+  const fraction = (octas % OCTAS_PER_APT)
+    .toString()
+    .padStart(8, "0")
+    .replace(/0+$/, "");
+  return fraction
+    ? `${octas / OCTAS_PER_APT}.${fraction}`
+    : `${octas / OCTAS_PER_APT}`;
+};

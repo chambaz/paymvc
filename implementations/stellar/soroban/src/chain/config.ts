@@ -35,6 +35,13 @@ export const server = (c: Deployment) =>
     timeout: 15_000,
   });
 const STROOPS_PER_XLM = 10_000_000n;
-/** Format exact stroops as XLM without floating point, for example 20000000n → "2.0000000". */
-export const formatNative = (_c: Deployment, stroops: bigint) =>
-  `${stroops / STROOPS_PER_XLM}.${(stroops % STROOPS_PER_XLM).toString().padStart(7, "0")}`;
+/** Format exact stroops as XLM without floating point or trailing zeros, for example 20000000n → "2". */
+export const formatNative = (_c: Deployment, stroops: bigint) => {
+  const fraction = (stroops % STROOPS_PER_XLM)
+    .toString()
+    .padStart(7, "0")
+    .replace(/0+$/, "");
+  return fraction
+    ? `${stroops / STROOPS_PER_XLM}.${fraction}`
+    : `${stroops / STROOPS_PER_XLM}`;
+};
