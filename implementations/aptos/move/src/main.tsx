@@ -11,9 +11,11 @@ async function boot() {
     { cache: "no-store" },
   );
   if (!response.ok) throw new Error("Deployment configuration unavailable.");
+  const record = await response.json();
+  // VITE_RPC_URL is a keyed Testnet endpoint; a local node keeps its own URL.
   const config = parseDeployment(
-    await response.json(),
-    import.meta.env.VITE_RPC_URL,
+    record,
+    record.network === "testnet" ? import.meta.env.VITE_RPC_URL : undefined,
   );
   const query = new QueryClient({
     defaultOptions: { queries: { staleTime: 5_000, retry: 1 } },
