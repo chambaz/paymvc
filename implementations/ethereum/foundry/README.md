@@ -29,9 +29,9 @@ Click **Start demo**. Registration allocates 100 credits and adds the address to
 | `monad`     |    10143 | MON | 5179 | `deployments/monad-testnet.json`     |
 | `robinhood` |    46630 | ETH | 5187 | `deployments/robinhood-testnet.json` |
 
-One production build contains all four public deployment records. `?network=base` selects Base on any origin; the same applies to the other names. The selected deployment must match the chain ID. The local launcher explicitly selects `public/local.json`; production builds exclude that Anvil configuration.
+One production build contains all four public deployment records. `?network=base` selects Base on any origin. Without it, a network subdomain selects the network, so `base.paymvc.com` opens Base; other hosts use the build default (Ethereum). The same applies to the other names. The selected deployment must match the chain ID. The local launcher explicitly selects `public/local.json`; production builds exclude that Anvil configuration.
 
-The dropdown links all eight available networks. The local default ports are: Ethereum 5173, Solana 5175, Base 5177, Monad 5179, Stellar 5181, Sui 5183, Aptos 5185, and Robinhood 5187. Start each frontend that you want to reach; all EVM frontends run from this folder. `VITE_ETHEREUM_URL`, `VITE_BASE_URL`, `VITE_MONAD_URL`, and `VITE_ROBINHOOD_URL` can instead point to one hosted origin with the matching `?network=` parameter. Equivalent URL settings exist for the other implementations.
+The dropdown links all nine networks. The local default ports are: Ethereum 5173, Solana 5175, Base 5177, Monad 5179, Stellar 5181, Sui 5183, Aptos 5185, Robinhood 5187, and Thruput 5189. Start each frontend that you want to reach; all EVM frontends run from this folder. `VITE_ETHEREUM_URL`, `VITE_BASE_URL`, `VITE_MONAD_URL`, and `VITE_ROBINHOOD_URL` point the dropdown at hosted sites instead, either one subdomain per network (as paymvc.com does) or one origin with the matching `?network=` parameter. Equivalent URL settings exist for the other implementations.
 
 ## Architecture
 

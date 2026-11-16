@@ -4,6 +4,8 @@
 
 PayMVC is a small payments app built on different blockchains. The interface and behavior are the same everywhere; the contracts, accounts, signing, and transaction handling use each platform's native tools. Compare two implementations to see how the platforms differ. Inspired by [TodoMVC](https://todomvc.com/).
 
+Try it live at **[paymvc.com](https://paymvc.com)**. Each network has its own subdomain, for example [base.paymvc.com](https://base.paymvc.com). All networks are testnets.
+
 ## Implementations
 
 | Implementation                                                   | Networks                                                               | Port                   |
