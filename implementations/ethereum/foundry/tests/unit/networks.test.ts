@@ -1,7 +1,8 @@
 import { readFileSync } from "node:fs";
-import { expect, it } from "vitest";
+import { describe, expect, it } from "vitest";
 import {
   defaultNetwork,
+  networkForLocation,
   evmChain,
   networkFor,
   networkNamed,
@@ -77,4 +78,30 @@ it("names the same RPC endpoints in foundry.toml for forge script", () => {
   const toml = readFileSync("foundry.toml", "utf8");
   for (const [name, network] of Object.entries(networks))
     expect(toml).toContain(`${name} = "${network.rpcUrl}"`);
+});
+
+describe("networkForLocation", () => {
+  const at = (hostname: string, search = "") => ({ hostname, search });
+  it("reads the network from a subdomain", () => {
+    expect(networkForLocation(at("base.paymvc.com")).name).toBe("Base");
+    expect(networkForLocation(at("robinhood.paymvc.com")).name).toBe(
+      "Robinhood",
+    );
+  });
+  it("prefers ?network= over the subdomain", () => {
+    expect(
+      networkForLocation(at("base.paymvc.com", "?network=monad")).name,
+    ).toBe("Monad");
+  });
+  it("falls back to the build default on other hosts", () => {
+    expect(networkForLocation(at("127.0.0.1")).name).toBe("Ethereum");
+    expect(
+      networkForLocation(at("evm-production.up.railway.app"), "base").name,
+    ).toBe("Base");
+  });
+  it("rejects an unknown ?network=", () => {
+    expect(() => networkForLocation(at("paymvc.com", "?network=foo"))).toThrow(
+      "Unsupported test network",
+    );
+  });
 });

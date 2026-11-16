@@ -79,6 +79,22 @@ export function networkNamed(name: string = defaultNetwork) {
   return networks[networkName(name)];
 }
 
+/**
+ * The network for a page: `?network=base` first, then a network subdomain
+ * (`base.paymvc.com`), then the build default. One build serves every network.
+ */
+export function networkForLocation(
+  location: Pick<Location, "search" | "hostname">,
+  fallback?: string,
+) {
+  const query = new URLSearchParams(location.search).get("network");
+  if (query) return networkNamed(query);
+  const subdomain = location.hostname.split(".")[0]!;
+  if (Object.hasOwn(networks, subdomain))
+    return networks[subdomain as NetworkName];
+  return networkNamed(fallback);
+}
+
 // Anvil is for local development and tests only. It uses the Ethereum implementation.
 const anvil = {
   id: "ethereum",

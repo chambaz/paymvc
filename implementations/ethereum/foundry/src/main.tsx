@@ -2,14 +2,14 @@ import { createRoot } from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { App } from "./app";
 import { parseDeployment } from "./chain/config";
-import { networkNamed } from "./networks";
+import { networkForLocation } from "./networks";
 import "./styles.css";
 
 const root = createRoot(document.getElementById("root")!);
 async function boot() {
-  const network = networkNamed(
-    new URLSearchParams(window.location.search).get("network") ??
-      import.meta.env.VITE_NETWORK,
+  const network = networkForLocation(
+    window.location,
+    import.meta.env.VITE_NETWORK,
   );
   const local = import.meta.env.VITE_DEPLOYMENT_URL === "/local.json";
   const response = await fetch(
