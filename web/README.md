@@ -34,3 +34,17 @@ To open the local demo, start the EVM implementation too. See [`implementations/
 The page uses the demo's neutral theme: `src/styles.css` and `public/theme.js` are copies of the demo's shared files. `src/components/` has small copies of the demo's button and theme toggle. The theme preference uses the same storage key as the demo.
 
 Network marks are monochrome SVGs, applied as CSS masks so that they follow the theme. Their sources are listed in [`src/assets/README.md`](src/assets/README.md).
+
+## Icons and link previews
+
+`scripts/assets.mjs` makes the favicon set and the Open Graph image in `public/`:
+
+- `favicon.svg`, `favicon.ico`, and `apple-touch-icon.png`: a "p." monogram from Inter SemiBold outlines. The SVG follows the browser's light or dark setting.
+- `og.png`: the 1200×630 link preview image, in the dark theme. All sites link to the hosted copy at <https://paymvc.com/og.png>.
+
+The build does not make these files. After you change the script, run it and commit the outputs:
+
+```sh
+npx playwright install chromium
+npm run assets
+```
