@@ -28,11 +28,17 @@ export default defineConfig({
       name: "public-assets",
       async generateBundle() {
         // Publish only intended assets; public/local.json belongs to Anvil development.
-        this.emitFile({
-          type: "asset",
-          fileName: "theme.js",
-          source: await readFile(resolve(directory, "public/theme.js"), "utf8"),
-        });
+        for (const file of [
+          "theme.js",
+          "favicon.svg",
+          "favicon.ico",
+          "apple-touch-icon.png",
+        ])
+          this.emitFile({
+            type: "asset",
+            fileName: file,
+            source: await readFile(resolve(directory, "public", file)),
+          });
         for (const item of Object.values(networks)) {
           this.emitFile({
             type: "asset",

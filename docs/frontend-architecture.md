@@ -23,8 +23,11 @@ src/
     recovery.ts               the bounded recheck policy (shared)
   lib/utils.ts                (shared)
   styles.css                  (shared)
+index.html                    the page head: icons and link preview tags (shared)
 public/
   theme.js                    applies the saved theme before render (shared)
+  favicon.svg, favicon.ico,   the site icons, made in web/ (shared)
+  apple-touch-icon.png
 ```
 
 `src/chain/generated/` holds the ABI, IDL client, or CLI bindings for the contract. Never edit it by hand; regenerate it from the contract build.
@@ -71,6 +74,8 @@ These files must be identical in every implementation:
 - `src/chain/recovery.ts`
 - `src/lib/utils.ts`
 - `src/styles.css`
+- `index.html`, which holds the icon links and the link preview tags
 - `public/theme.js`
+- `public/favicon.svg`, `public/favicon.ico`, and `public/apple-touch-icon.png`, copies of the files that `web/scripts/assets.mjs` makes
 
 A change to one of these files must be applied to every implementation in the same pull request. `node conformance/verify.mjs` checks them: run it from the repository root to check every implementation, or from one implementation folder to check that folder.

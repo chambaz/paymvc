@@ -43,7 +43,9 @@ These files are shared. Copy them without changes:
 - `src/chain/recovery.ts`
 - `src/lib/utils.ts`
 - `src/styles.css`
+- `index.html`, which holds the icon links and the link preview tags
 - `public/theme.js`
+- `public/favicon.svg`, `public/favicon.ico`, and `public/apple-touch-icon.png`, copies of the files that `web/scripts/assets.mjs` makes
 - `tests/conformance/*`
 - `implementation.schema.json`
 

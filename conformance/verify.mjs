@@ -24,13 +24,21 @@ const shared = [
   "src/chain/recovery.ts",
   "src/lib/utils.ts",
   "src/styles.css",
+  "index.html",
   "public/theme.js",
+  "public/favicon.svg",
+  "public/favicon.ico",
+  "public/apple-touch-icon.png",
   ...(await readdir(join(reference, "src/components/ui"))).map(
     (file) => `src/components/ui/${file}`,
   ),
 ];
 
 const read = (path) => readFile(path, "utf8").catch(() => undefined);
+const sameBytes = async (a, b) => {
+  const [left, right] = await Promise.all([readFile(a), readFile(b)]);
+  return left.equals(right);
+};
 
 async function implementations() {
   const cwd = process.cwd();
@@ -91,7 +99,9 @@ for (const folder of await implementations()) {
   if (folder === reference) continue;
   for (const file of shared)
     if (
-      (await read(join(folder, file))) !== (await read(join(reference, file)))
+      !(await sameBytes(join(folder, file), join(reference, file)).catch(
+        () => false,
+      ))
     )
       failures.push(`${name}/${file} differs from the Ethereum implementation`);
   const ui = await readdir(join(folder, "src/components/ui")).catch(() => []);
