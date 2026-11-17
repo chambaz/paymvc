@@ -49,13 +49,15 @@ function BrandMark({
 }
 
 function DemoActions({ placement }: { placement: "header" | "hero" }) {
-  const size = placement === "header" ? "default" : "lg";
+  const header = placement === "header";
+  const size = header ? "default" : "lg";
   return (
     <>
       <ButtonLink
         href={demoUrl}
         size={size}
-        variant={placement === "header" ? "secondary" : "default"}
+        variant={header ? "secondary" : "default"}
+        className={header ? "max-sm:px-3" : ""}
       >
         Launch Demo
       </ButtonLink>
@@ -65,8 +67,11 @@ function DemoActions({ placement }: { placement: "header" | "hero" }) {
         rel="noreferrer"
         size={size}
         variant="outline"
+        // Small screens show the header button as an icon only.
+        className={header ? "max-sm:w-9 max-sm:px-0" : ""}
       >
-        <BrandMark src={github} compact /> GitHub
+        <BrandMark src={github} compact />{" "}
+        <span className={header ? "max-sm:sr-only" : undefined}>GitHub</span>
       </ButtonLink>
     </>
   );
@@ -76,15 +81,15 @@ function LandingPage() {
   return (
     <div className="isolate flex min-h-dvh flex-col">
       <header className="py-6">
-        <div className="mx-auto grid max-w-6xl items-center gap-4 px-5 sm:grid-cols-[1fr_auto] sm:px-8">
-          <div className="text-3xl font-semibold tracking-tight">
+        <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-3 px-5 sm:gap-4 sm:px-8">
+          <div className="text-2xl font-semibold tracking-tight sm:text-3xl">
             <a href="/" aria-label="PayMVC. Homepage">
               paymvc.
             </a>
           </div>
           <nav
             aria-label="Main navigation"
-            className="flex items-center justify-end gap-3"
+            className="ml-auto flex items-center gap-2 sm:gap-3"
           >
             <DemoActions placement="header" />
             <ThemeToggle />
