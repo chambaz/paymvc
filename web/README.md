@@ -27,6 +27,8 @@ Run `npm run check` before you commit. It runs the type check and the Prettier c
 | ------------------- | ----------------------------------------- | ------------------------------------ |
 | `VITE_ETHEREUM_URL` | `http://127.0.0.1:5173/?network=ethereum` | The demo that **Launch Demo** opens. |
 
+On Railway, Caddy serves the build with `Caddyfile.template`: Railpack's default Node template plus a permanent redirect from `www.paymvc.com` to `paymvc.com`.
+
 To open the local demo, start the EVM implementation too. See [`implementations/ethereum/foundry`](../implementations/ethereum/foundry/README.md).
 
 ## Design
