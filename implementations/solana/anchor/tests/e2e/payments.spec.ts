@@ -272,3 +272,26 @@ test("storage failure stops before funding", async ({ page }) => {
   ).toBeVisible();
   await expect(page.getByTestId("funding-address")).not.toBeVisible();
 });
+
+test("unreadable browser storage stops before a wallet is created", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Storage.prototype.getItem = () => {
+      throw new DOMException("Storage blocked", "SecurityError");
+    };
+  });
+  await page.goto("/");
+  const message = page.getByRole("alert").filter({
+    hasText: "Browser storage is unavailable",
+  });
+  await expect(message).toBeVisible();
+  await page
+    .getByRole("button", { name: "Create demo wallet", exact: true })
+    .click();
+  await expect(message).toBeVisible();
+  await expect(page.getByTestId("funding-address")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Reset Demo", exact: true }),
+  ).toHaveCount(0);
+});
