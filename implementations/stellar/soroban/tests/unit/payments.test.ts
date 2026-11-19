@@ -14,6 +14,8 @@ import { inclusionFee } from "../../src/chain/transactions";
 const mocks = vi.hoisted(() => ({
   read: vi.fn(),
   transact: vi.fn(),
+  /** Replaces the ledger read for a test. */
+  ledger: undefined as undefined | (() => Promise<unknown>),
 }));
 // A network that passes deployment verification: both instances run the expected WASM.
 vi.mock("../../src/chain/config", async (original) => {
@@ -22,27 +24,26 @@ vi.mock("../../src/chain/config", async (original) => {
     ...actual,
     server: (config: { passphrase: string; contract: string }) => ({
       getNetwork: async () => ({ passphrase: config.passphrase }),
-      getLedgerEntries: async (
-        ...keys: { toXDR: (f: string) => string }[]
-      ) => ({
-        entries: keys.map((key) => ({
-          key,
-          val: {
-            type: "contractData",
-            contractData: {
-              val: {
-                type: "scvContractInstance",
-                instance: {
-                  executable: {
-                    type: "contractExecutableWasm",
-                    wasmHash: { toString: () => "0".repeat(64) },
+      getLedgerEntries: async (...keys: { toXDR: (f: string) => string }[]) =>
+        mocks.ledger?.() ?? {
+          entries: keys.map((key) => ({
+            key,
+            val: {
+              type: "contractData",
+              contractData: {
+                val: {
+                  type: "scvContractInstance",
+                  instance: {
+                    executable: {
+                      type: "contractExecutableWasm",
+                      wasmHash: { toString: () => "0".repeat(64) },
+                    },
                   },
                 },
               },
             },
-          },
-        })),
-      }),
+          })),
+        },
     }),
   };
 });
@@ -51,7 +52,8 @@ vi.mock("../../src/chain/transactions", async (original) => ({
   readContract: mocks.read,
   transact: mocks.transact,
 }));
-const { payments, readContacts } = await import("../../src/chain/payments");
+const { fundingBudget, payments, readContacts } =
+  await import("../../src/chain/payments");
 
 const c = parseDeployment({
   network: "localnet",
@@ -89,6 +91,7 @@ const scEntry = (from: string, to: string) =>
   );
 beforeEach(async () => {
   vi.resetAllMocks();
+  mocks.ledger = undefined;
   session = await newSession(c);
 });
 
@@ -151,4 +154,49 @@ it("offers more contacts when a full page arrives after a stale count", async ()
   const page = await readContacts(c, session, 0n);
   expect(page.addresses).toHaveLength(5);
   expect(page.next).toBe(5n);
+});
+
+it("ends the list when a full page reaches the count", async () => {
+  // The page includes the owner, so it yields five contacts and reaches the count of 6.
+  const addresses = [
+    new Address(accountFor(session).address).toScVal(),
+    ...Array.from({ length: 5 }, () =>
+      new Address(Keypair.random().publicKey()).toScVal(),
+    ),
+  ];
+  let count = 6n;
+  mocks.read.mockImplementation(async (_c, _source, _contract, method) =>
+    method === "profile_count"
+      ? nativeToScVal(count, { type: "u64" })
+      : xdr.ScVal.scvVec(addresses),
+  );
+  expect((await readContacts(c, session, 0n)).next).toBeUndefined();
+  // A registration between the reads leaves more to load.
+  mocks.read.mockImplementation(async (_c, _source, _contract, method) =>
+    method === "profile_count"
+      ? nativeToScVal(count++, { type: "u64" })
+      : xdr.ScVal.scvVec(addresses),
+  );
+  expect((await readContacts(c, session, 0n)).next).toBe(6n);
+});
+
+it("reads an account that does not exist yet as unfunded", async () => {
+  mocks.ledger = async () => ({ entries: [] });
+  const owner = Keypair.random().publicKey();
+  await expect(fundingBudget(c, owner)).resolves.toMatchObject({ balance: 0n });
+  mocks.ledger = async () => ({
+    entries: [{ val: { type: "account", account: { balance: 70_000_000n } } }],
+  });
+  await expect(fundingBudget(c, owner)).resolves.toMatchObject({
+    balance: 70_000_000n,
+  });
+});
+
+it("reports a failed funding read instead of an unfunded account", async () => {
+  mocks.ledger = async () => {
+    throw new Error("503 Service Unavailable");
+  };
+  await expect(fundingBudget(c, Keypair.random().publicKey())).rejects.toThrow(
+    "Could not check XLM funding",
+  );
 });

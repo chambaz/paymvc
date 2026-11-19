@@ -43,6 +43,11 @@ jobs:
       - run: stellar --version
       - run: npm ci
       - run: npm run contracts:build
+      - name: Check generated specs
+        # The build regenerates the specs, so compare them with the committed files.
+        run: |
+          git status --porcelain -- src/chain/generated
+          test -z "$(git status --porcelain -- src/chain/generated)"
       - run: npm run check
       - run: npm test
       - run: cargo clippy --all-targets --all-features --locked -- -D warnings

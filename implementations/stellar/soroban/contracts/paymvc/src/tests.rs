@@ -522,4 +522,12 @@ fn payments_keep_both_profiles_and_their_records_live() {
     assert!(ttl(&Key::Profile(a.clone())) >= TTL / 2);
     assert!(ttl(&Key::Entry(a.clone(), d.op(1))) >= TTL / 2);
     assert!(ttl(&Key::Activity(b.clone(), 0)) >= TTL / 2);
+    // Approving a request also extends the requester's profile.
+    d.client().request(a, b, &2, &d.op(2));
+    d.env
+        .ledger()
+        .with_mut(|ledger| ledger.sequence_number += TTL / 2 + 1);
+    assert!(ttl(&Key::Profile(a.clone())) < TTL / 2);
+    d.client().approve(b, a, &d.op(2));
+    assert!(ttl(&Key::Profile(a.clone())) >= TTL / 2);
 }

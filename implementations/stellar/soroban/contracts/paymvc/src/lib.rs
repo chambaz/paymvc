@@ -279,6 +279,8 @@ impl PayMVC {
     /// Pays the request from `payer` to the requester and marks it Paid.
     pub fn approve(e: Env, payer: Address, from: Address, operation: BytesN<32>) {
         let record = pending(&e, &payer, &from, &operation);
+        // The requester receives credits, so their profile stays live too.
+        keep(&e, Some(&Key::Profile(from.clone())));
         token(&e).transfer(&payer, &from, &record.amount);
         finish(&e, record, State::Paid);
     }

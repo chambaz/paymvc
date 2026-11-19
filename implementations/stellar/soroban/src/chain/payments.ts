@@ -1,4 +1,4 @@
-import { Contract, StrKey } from "@stellar/stellar-sdk";
+import { Contract, Keypair, StrKey, xdr } from "@stellar/stellar-sdk";
 import { Buffer } from "buffer";
 import { server, type Deployment } from "./config";
 import { creditsSpec, paymvcSpec } from "./generated/specs";
@@ -85,18 +85,24 @@ export class FundingRequired extends Error {
 // TTL (a call pays this about every 15 days), and fees for the scenario.
 const REQUIRED_STROOPS = 50_000_000n;
 export async function fundingBudget(c: Deployment, owner: string) {
-  try {
-    const account = await server(c).getAccountEntry(owner);
-    return {
-      balance: account.balance,
-      required: REQUIRED_STROOPS,
-    };
-  } catch (error) {
-    // Friendbot has not created the account yet.
-    if (error instanceof Error && /not found/i.test(error.message))
-      return { balance: 0n, required: REQUIRED_STROOPS };
-    throw new Error("Could not check XLM funding. Please retry.");
-  }
+  // Read the account entry directly: the SDK's getAccountEntry reports every RPC
+  // failure as "not found", which would look like an unfunded wallet.
+  const key = xdr.LedgerKey.account(
+    new xdr.LedgerKeyAccount({
+      accountId: Keypair.fromPublicKey(owner).xdrPublicKey(),
+    }),
+  );
+  const { entries } = await server(c)
+    .getLedgerEntries(key)
+    .catch(() => {
+      throw new Error("Could not check XLM funding. Please retry.");
+    });
+  const entry = entries[0]?.val;
+  return {
+    // No entry: Friendbot has not created the account yet.
+    balance: entry?.type === "account" ? entry.account.balance : 0n,
+    required: REQUIRED_STROOPS,
+  };
 }
 
 /** Deployments that passed verification in this page. The contracts cannot change. */
@@ -176,13 +182,26 @@ export function payments(
 ) {
   const read = <T>(method: string, args: object) =>
     readApp<T>(c, accountFor(s).address, method, args);
-  const invoke = (label: string, method: string, args: object) =>
-    transact(c, s, persist, progress, label, async () => [
-      new Contract(c.contract).call(
-        method,
-        ...paymvcSpec.funcArgsToScVals(method, args),
-      ),
-    ]);
+  const invoke = (
+    label: string,
+    method: string,
+    args: object,
+    absent: () => Promise<boolean>,
+  ) =>
+    transact(
+      c,
+      s,
+      persist,
+      progress,
+      label,
+      async () => [
+        new Contract(c.contract).call(
+          method,
+          ...paymvcSpec.funcArgsToScVals(method, args),
+        ),
+      ],
+      absent,
+    );
   /** The chain shows the effect of a saved transaction, so it is confirmed. */
   const confirmSaved = (label: string) => {
     const record = s.journal[label];
@@ -248,6 +267,7 @@ export function payments(
               operation: operationBytes(operation),
             }
           : { payer: actor, from, operation: operationBytes(operation) },
+      async () => !(await check()),
     );
     if (!(await check())) throw new ResultPending();
   }
@@ -262,7 +282,13 @@ export function payments(
     const registered = () => read<boolean>("registered", { account: visitor });
     // Only this wallet's signature can register it, so membership proves the saved transaction.
     if (await registered()) confirmSaved("register");
-    else await invoke("register", "register", { owner: visitor });
+    else
+      await invoke(
+        "register",
+        "register",
+        { owner: visitor },
+        async () => !(await registered()),
+      );
     if ((await registered()) !== true) throw new ResultPending();
     s.ready = true;
     persist();
@@ -284,9 +310,10 @@ export async function readContacts(c: Deployment, s: Session, start: bigint) {
     if (address !== owner) addresses.push(address);
     if (addresses.length === 5) break;
   }
-  // The count and the page are separate reads. A registration between them can make the
-  // page longer than the count, so a full page also means that more may follow.
-  const more =
-    next < total || next < start + BigInt(page.length) || page.length === 6;
+  let more = next < total || next < start + BigInt(page.length);
+  // The count and the page are separate reads. A registration between them can make a
+  // full page reach past the count, so count again before ending the list.
+  if (!more && page.length === 6)
+    more = (await readApp<bigint>(c, owner, "profile_count")) > next;
   return { addresses, next: more ? next : undefined };
 }

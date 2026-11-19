@@ -92,6 +92,12 @@ export async function transact(
   progress: Progress,
   label: string,
   operations: () => Promise<xdr.Operation[]>,
+  /**
+   * Reads current state and returns true when the operation did not happen. After a
+   * closed ledger passes the deadline, this proves expiry even when RPC history no
+   * longer covers the transaction.
+   */
+  absent?: () => Promise<boolean>,
 ) {
   const client = server(c);
   let record = s.journal[label];
@@ -151,10 +157,12 @@ export async function transact(
       persist();
       throw new RevertedTransaction();
     }
-    // NOT_FOUND proves absence only while the RPC still covers the entire signed lifetime.
+    // After the deadline, NOT_FOUND proves absence while the RPC still covers the entire
+    // signed lifetime. Without that history, current state must show no effect. It is read
+    // after a ledger closed past the deadline, so the transaction can no longer land.
     if (
       result.latestLedgerCloseTime > Number(tx.timeBounds!.maxTime) &&
-      result.oldestLedger <= record.preparedLedger
+      (result.oldestLedger <= record.preparedLedger || (await absent?.()))
     ) {
       delete s.journal[label];
       persist();
