@@ -23,8 +23,6 @@
 		format json
 	}
 
-	respond /health 200
-
 	# paymvc.com is the canonical address.
 	@www host www.paymvc.com
 	redir @www https://paymvc.com{uri} permanent
@@ -39,7 +37,12 @@
 		Cross-Origin-Opener-Policy "same-origin"
 		X-Content-Type-Options "nosniff"
 		X-Frame-Options "DENY"
-		-Server
+	}
+	# Separate, because a deletion defers a header block until the response is written,
+	# and error responses such as the asset 404 would then skip the block above.
+	header -Server
+	handle_errors {
+		header -Server
 	}
 
 	# Vite puts a content hash in each asset name, so assets never change. Other
@@ -73,6 +76,9 @@
 	# A route runs in the written order. A missing asset, for example from an older
 	# build, is a 404, not the page.
 	route {
+		# Before the page fallback, which would otherwise answer /health.
+		respond /health 200
+
 		@missingAsset {
 			path /assets/*
 			not file
