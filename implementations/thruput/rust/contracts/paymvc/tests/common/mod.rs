@@ -5,6 +5,7 @@ use paymvc::{
 };
 use std::panic::AssertUnwindSafe;
 use thruput_erc20_if::ERC20AllowanceExpiryClient;
+use thruput_sdk::event::{IntoTopic, Topic};
 use thruput_sdk::*;
 
 static OP: SHA256Hash = thruput_sdk::sha256_static!("OPERATION");
@@ -565,7 +566,8 @@ pub fn credits_follow_the_token_rules(
     });
 }
 
-/// Registration, creation, and resolution each emit one PayMVC event.
+/// Registration, creation, and resolution each emit one PayMVC event with the
+/// participants as topics and the operation, amount, kind, or state as payload.
 pub fn events_describe_each_change(
     env: &TestEnvironmentHandle,
     app: &SHA256Hash,
@@ -578,10 +580,46 @@ pub fn events_describe_each_change(
         env.advance_block();
         result
     };
-    call(alice(), &|a| a.app().register()).assert_emitted::<Registered>(&a.address, |_| true);
-    call(bob(), &|a| a.app().register()).assert_emitted::<Registered>(&a.address, |_| true);
-    call(alice(), &|a| a.app().request(&bob(), 5, &OP))
-        .assert_emitted::<Created>(&a.address, |_| true);
-    call(bob(), &|a| a.app().decline(&alice(), &OP))
-        .assert_emitted::<Resolved>(&a.address, |_| true);
+    let topic = |address: ContractAddress| Topic::from(address.into_topic());
+    call(alice(), &|a| a.app().register())
+        .assert_emitted::<Registered>(&a.address, |e| e.topic(1) == Some(&topic(alice())));
+    call(bob(), &|a| a.app().register())
+        .assert_emitted::<Registered>(&a.address, |e| e.topic(1) == Some(&topic(bob())));
+    call(alice(), &|a| a.app().request(&bob(), 5, &OP)).assert_emitted::<Created>(
+        &a.address,
+        |e| {
+            let p = e.payload();
+            e.topic(1) == Some(&topic(alice()))
+                && e.topic(2) == Some(&topic(bob()))
+                && *p.operation == OP
+                && p.amount == 5
+                && p.kind == Kind::Request
+        },
+    );
+    call(bob(), &|a| a.app().decline(&alice(), &OP)).assert_emitted::<Resolved>(&a.address, |e| {
+        let p = e.payload();
+        e.topic(1) == Some(&topic(alice())) && *p.operation == OP && p.state == State::Declined
+    });
+    call(alice(), &|a| {
+        a.credits().adjust_allowance(&a.address, 3);
+        a.app().send(&bob(), 3, &OP2)
+    })
+    .assert_emitted::<Created>(&a.address, |e| {
+        let p = e.payload();
+        e.topic(1) == Some(&topic(alice()))
+            && e.topic(2) == Some(&topic(bob()))
+            && *p.operation == OP2
+            && p.amount == 3
+            && p.kind == Kind::Transfer
+    });
+    let paid = op(9);
+    call(bob(), &|a| a.app().request(&alice(), 4, &paid));
+    call(alice(), &|a| {
+        a.credits().adjust_allowance(&a.address, 4);
+        a.app().approve(&bob(), &paid)
+    })
+    .assert_emitted::<Resolved>(&a.address, |e| {
+        let p = e.payload();
+        e.topic(1) == Some(&topic(bob())) && *p.operation == paid && p.state == State::Paid
+    });
 }

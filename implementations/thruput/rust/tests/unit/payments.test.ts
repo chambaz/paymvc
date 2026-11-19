@@ -148,6 +148,15 @@ describe("deployment", () => {
     await verifyDeployment(c);
     expect(client.getNetworkInfo).toHaveBeenCalledOnce();
   });
+
+  it("verifies again after a failed read, because Futurenet can reset", async () => {
+    const c = unverified();
+    await verifyDeployment(c);
+    client.readViews.mockRejectedValueOnce(new Error("RPC down"));
+    await expect(readContacts(c, session, 0n)).rejects.toThrow("RPC down");
+    await verifyDeployment(c);
+    expect(client.getNetworkInfo).toHaveBeenCalledTimes(2);
+  });
 });
 
 describe("contacts", () => {

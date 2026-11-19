@@ -60,20 +60,17 @@ function parseEntryId(id: string) {
   };
 }
 
-/**
- * Check the network, both contracts' code hashes, the token that PayMVC
- * uses, and the token's zero decimals. Futurenet can reset, so this runs
- * before every read and write.
- */
 /** Verifications in this page, by deployment. The contracts cannot change. */
 const verified = new Map<string, Promise<Client>>();
+const deploymentId = (c: Deployment) =>
+  `${c.networkHash}:${c.address}:${c.rpcUrl}`;
 
 /**
  * Checks the network, both contract code hashes, the token that PayMVC binds, and its
  * zero decimals, once per page load. A failed check is retried on the next call.
  */
 export function verifyDeployment(c: Deployment) {
-  const id = `${c.networkHash}:${c.address}:${c.rpcUrl}`;
+  const id = deploymentId(c);
   let check = verified.get(id);
   if (!check) {
     check = checkDeployment(c).catch((error: unknown) => {
@@ -83,6 +80,22 @@ export function verifyDeployment(c: Deployment) {
     verified.set(id, check);
   }
   return check;
+}
+
+/**
+ * Runs `task` with a verified client. Futurenet can reset, so a failed task drops the
+ * cached verification, and the next call checks the network again.
+ */
+async function withDeployment<T>(
+  c: Deployment,
+  task: (client: Client) => Promise<T>,
+) {
+  try {
+    return await task(await verifyDeployment(c));
+  } catch (error) {
+    verified.delete(deploymentId(c));
+    throw error;
+  }
 }
 
 async function checkDeployment(c: Deployment) {
@@ -123,44 +136,46 @@ async function checkDeployment(c: Deployment) {
 }
 
 export async function fundingBudget(c: Deployment, owner: string) {
-  const client = await verifyDeployment(c);
-  const balance = await client.getBalance({
-    address: addressFromBase58(owner),
+  return withDeployment(c, async (client) => {
+    const balance = await client.getBalance({
+      address: addressFromBase58(owner),
+    });
+    return { balance: balance.rawBalance, required: FUNDING_REQUIRED };
   });
-  return { balance: balance.rawBalance, required: FUNDING_REQUIRED };
 }
 
 export async function readContacts(c: Deployment, s: Session, start: bigint) {
-  const client = await verifyDeployment(c);
-  const address = addressFromBase58(c.address);
-  const owner = accountFor(s).address;
-  const { results } = await client.readViews({
-    calls: [
-      app.profileCount.viewRequest({ address }),
-      app.profiles.viewRequest({
-        address,
-        args: { start, limit: PROFILE_PAGE },
-      }),
-    ],
-  });
-  const [count, page] = results;
-  if (count!.kind !== "return" || page!.kind !== "return")
-    throw new Error("Contacts are unavailable.");
-  // The page holds six entries, so it fills five contacts even when one is
-  // the owner. The owner's entry is consumed wherever it appears; the loop
-  // stops at the first contact that does not fit. This never skips a contact
-  // and never leaves only the owner for the next page.
-  const addresses: string[] = [];
-  let next = start;
-  for (const entry of page!.value) {
-    const text = toBase58(entry);
-    if (text !== owner) {
-      if (addresses.length === 5) break;
-      addresses.push(text);
+  return withDeployment(c, async (client) => {
+    const address = addressFromBase58(c.address);
+    const owner = accountFor(s).address;
+    const { results } = await client.readViews({
+      calls: [
+        app.profileCount.viewRequest({ address }),
+        app.profiles.viewRequest({
+          address,
+          args: { start, limit: PROFILE_PAGE },
+        }),
+      ],
+    });
+    const [count, page] = results;
+    if (count!.kind !== "return" || page!.kind !== "return")
+      throw new Error("Contacts are unavailable.");
+    // The page holds six entries, so it fills five contacts even when one is
+    // the owner. The owner's entry is consumed wherever it appears; the loop
+    // stops at the first contact that does not fit. This never skips a contact
+    // and never leaves only the owner for the next page.
+    const addresses: string[] = [];
+    let next = start;
+    for (const entry of page!.value) {
+      const text = toBase58(entry);
+      if (text !== owner) {
+        if (addresses.length === 5) break;
+        addresses.push(text);
+      }
+      next++;
     }
-    next++;
-  }
-  return { addresses, next: next < count!.value ? next : undefined };
+    return { addresses, next: next < count!.value ? next : undefined };
+  });
 }
 
 type ChainEntry = paymvc.v0_1.implementation.Entry;
@@ -184,50 +199,51 @@ export type DisplayEntry = ReturnType<typeof displayEntry>;
  * absolute history index, so a new entry never shifts a later page.
  */
 export async function readDashboard(c: Deployment, s: Session, limit = 50) {
-  const client = await verifyDeployment(c);
-  const address = addressFromBase58(c.address);
-  const owner = addressFromBase58(accountFor(s).address);
-  const head = await waitForHeight(() =>
-    client.readViews({
-      minStateBlockHeight: confirmedHeight(s),
-      calls: [
-        token.getBalanceOf.viewRequest({
-          address: addressFromBase58(c.credits),
-          args: { addr: owner },
-        }),
-        app.activityCount.viewRequest({ address, args: { account: owner } }),
-      ],
-    }),
-  );
-  const [balance, count] = head.results;
-  if (balance!.kind !== "return" || count!.kind !== "return")
-    throw new Error("Account reads are unavailable.");
-  const pages = [];
-  let before = count!.value;
-  let remaining = BigInt(limit);
-  while (before > 0n && remaining > 0n) {
-    const size = remaining < ACTIVITY_PAGE ? remaining : ACTIVITY_PAGE;
-    pages.push(
-      app.activity.viewRequest({
-        address,
-        args: { account: owner, before, limit: size },
+  return withDeployment(c, async (client) => {
+    const address = addressFromBase58(c.address);
+    const owner = addressFromBase58(accountFor(s).address);
+    const head = await waitForHeight(() =>
+      client.readViews({
+        minStateBlockHeight: confirmedHeight(s),
+        calls: [
+          token.getBalanceOf.viewRequest({
+            address: addressFromBase58(c.credits),
+            args: { addr: owner },
+          }),
+          app.activityCount.viewRequest({ address, args: { account: owner } }),
+        ],
       }),
     );
-    before = before > size ? before - size : 0n;
-    remaining -= size;
-  }
-  const entries: DisplayEntry[] = [];
-  for (let i = 0; i < pages.length; i += MAX_VIEWS) {
-    const calls = pages.slice(i, i + MAX_VIEWS);
-    const { results } = await waitForHeight(() =>
-      client.readViews({ minStateBlockHeight: head.stateBlockHeight, calls }),
-    );
-    for (const page of results) {
-      if (page.kind !== "return") throw new Error("Activity is unavailable.");
-      entries.push(...page.value.map(displayEntry));
+    const [balance, count] = head.results;
+    if (balance!.kind !== "return" || count!.kind !== "return")
+      throw new Error("Account reads are unavailable.");
+    const pages = [];
+    let before = count!.value;
+    let remaining = BigInt(limit);
+    while (before > 0n && remaining > 0n) {
+      const size = remaining < ACTIVITY_PAGE ? remaining : ACTIVITY_PAGE;
+      pages.push(
+        app.activity.viewRequest({
+          address,
+          args: { account: owner, before, limit: size },
+        }),
+      );
+      before = before > size ? before - size : 0n;
+      remaining -= size;
     }
-  }
-  return { balance: balance!.value, count: count!.value, entries };
+    const entries: DisplayEntry[] = [];
+    for (let i = 0; i < pages.length; i += MAX_VIEWS) {
+      const calls = pages.slice(i, i + MAX_VIEWS);
+      const { results } = await waitForHeight(() =>
+        client.readViews({ minStateBlockHeight: head.stateBlockHeight, calls }),
+      );
+      for (const page of results) {
+        if (page.kind !== "return") throw new Error("Activity is unavailable.");
+        entries.push(...page.value.map(displayEntry));
+      }
+    }
+    return { balance: balance!.value, count: count!.value, entries };
+  });
 }
 
 export function payments(
@@ -247,132 +263,141 @@ export function payments(
     });
   return {
     async setup() {
-      const client = await verifyDeployment(c);
-      const isRegistered = async (minStateBlockHeight: bigint) =>
-        (
-          await waitForHeight(() =>
-            app.registered.view({
-              client,
-              address,
-              args: { account: owner },
-              minStateBlockHeight,
-            }),
-          )
-        ).value;
-      // Only a new registration needs funds. A saved one is reconciled first,
-      // whatever the current balance is.
-      if (!s.journal.registration) {
-        const budget = await fundingBudget(c, accountFor(s).address);
-        if (budget.balance < budget.required) throw new FundingRequired(c);
-      }
-      await transact(
-        c,
-        s,
-        persist,
-        progress,
-        "registration",
-        client,
-        [app.register.invocation(address, CALL_GAS)],
-        async (height) => !(await isRegistered(height)),
-      );
-      if (!(await isRegistered(confirmedHeight(s)))) throw new ResultPending();
-      s.ready = true;
-      persist();
+      return withDeployment(c, async (client) => {
+        const isRegistered = async (minStateBlockHeight: bigint) =>
+          (
+            await waitForHeight(() =>
+              app.registered.view({
+                client,
+                address,
+                args: { account: owner },
+                minStateBlockHeight,
+              }),
+            )
+          ).value;
+        // Only a new registration needs funds. A saved one is reconciled first,
+        // whatever the current balance is.
+        if (!s.journal.registration) {
+          const budget = await fundingBudget(c, accountFor(s).address);
+          if (budget.balance < budget.required) throw new FundingRequired(c);
+        }
+        await transact(
+          c,
+          s,
+          persist,
+          progress,
+          "registration",
+          client,
+          [app.register.invocation(address, CALL_GAS)],
+          async (height) => !(await isRegistered(height)),
+        );
+        if (!(await isRegistered(confirmedHeight(s))))
+          throw new ResultPending();
+        s.ready = true;
+        persist();
+      });
     },
     async execute(intent: Intent) {
-      const client = await verifyDeployment(c);
-      const amount = parseAmount(intent.amount);
-      const recipient = addressFromBase58(normalizeAddress(intent.recipient));
-      const creating = intent.action === "send" || intent.action === "request";
-      // A new entry is keyed by this wallet and the intent's operation. A
-      // resolution targets the request named by the intent's row ID.
-      const key = creating
-        ? {
-            from: owner,
-            operation: fixedBytes(fromHex0x(intent.operation), 32),
-          }
-        : parseEntryId(intent.id);
-      // A payment allows PayMVC to move exactly its amount, in the same
-      // atomic wallet transaction.
-      const calls: Invocation[] =
-        intent.action === "send"
-          ? [
-              allow(amount),
-              app.send.invocation(address, CALL_GAS, {
-                to: recipient,
-                amount,
-                operation: key.operation,
-              }),
-            ]
-          : intent.action === "request"
+      return withDeployment(c, async (client) => {
+        const amount = parseAmount(intent.amount);
+        const recipient = addressFromBase58(normalizeAddress(intent.recipient));
+        const creating =
+          intent.action === "send" || intent.action === "request";
+        // A new entry is keyed by this wallet and the intent's operation. A
+        // resolution targets the request named by the intent's row ID.
+        const key = creating
+          ? {
+              from: owner,
+              operation: fixedBytes(fromHex0x(intent.operation), 32),
+            }
+          : parseEntryId(intent.id);
+        // A payment allows PayMVC to move exactly its amount, in the same
+        // atomic wallet transaction.
+        const calls: Invocation[] =
+          intent.action === "send"
             ? [
-                app.request.invocation(address, CALL_GAS, {
-                  payer: recipient,
+                allow(amount),
+                app.send.invocation(address, CALL_GAS, {
+                  to: recipient,
                   amount,
                   operation: key.operation,
                 }),
               ]
-            : intent.action === "approve"
-              ? [allow(amount), app.approve.invocation(address, CALL_GAS, key)]
-              : [app.decline.invocation(address, CALL_GAS, key)];
-      const entry = async (minStateBlockHeight: bigint) =>
-        (
-          await waitForHeight(() =>
-            app.entry.view({
+            : intent.action === "request"
+              ? [
+                  app.request.invocation(address, CALL_GAS, {
+                    payer: recipient,
+                    amount,
+                    operation: key.operation,
+                  }),
+                ]
+              : intent.action === "approve"
+                ? [
+                    allow(amount),
+                    app.approve.invocation(address, CALL_GAS, key),
+                  ]
+                : [app.decline.invocation(address, CALL_GAS, key)];
+        const entry = async (minStateBlockHeight: bigint) =>
+          (
+            await waitForHeight(() =>
+              app.entry.view({
+                client,
+                address,
+                args: key,
+                minStateBlockHeight,
+              }),
+            )
+          ).value;
+        const label = `${intent.operation}:${intent.action}`;
+        // A payment needs the credits before it is signed. A saved transaction is
+        // reconciled instead, whatever the current balance is.
+        if (
+          (intent.action === "send" || intent.action === "approve") &&
+          !s.journal[label]
+        ) {
+          const { value: balance } = await waitForHeight(() =>
+            token.getBalanceOf.view({
               client,
-              address,
-              args: key,
-              minStateBlockHeight,
+              address: credits,
+              args: { addr: owner },
+              minStateBlockHeight: confirmedHeight(s),
             }),
-          )
-        ).value;
-      const label = `${intent.operation}:${intent.action}`;
-      // A payment needs the credits before it is signed. A saved transaction is
-      // reconciled instead, whatever the current balance is.
-      if (
-        (intent.action === "send" || intent.action === "approve") &&
-        !s.journal[label]
-      ) {
-        const { value: balance } = await waitForHeight(() =>
-          token.getBalanceOf.view({
-            client,
-            address: credits,
-            args: { addr: owner },
-            minStateBlockHeight: confirmedHeight(s),
-          }),
+          );
+          if (balance < amount)
+            throw new Error(
+              "Not enough demo credits. No payment was completed.",
+            );
+        }
+        // A send or request is absent while its key has no entry. An approval
+        // or decline is absent while the request is still pending.
+        await transact(
+          c,
+          s,
+          persist,
+          progress,
+          label,
+          client,
+          calls,
+          async (height) => {
+            const value = await entry(height);
+            return creating ? value === null : value?.state === 0n;
+          },
         );
-        if (balance < amount)
-          throw new Error("Not enough demo credits. No payment was completed.");
-      }
-      // A send or request is absent while its key has no entry. An approval
-      // or decline is absent while the request is still pending.
-      await transact(
-        c,
-        s,
-        persist,
-        progress,
-        label,
-        client,
-        calls,
-        async (height) => {
-          const value = await entry(height);
-          return creating ? value === null : value?.state === 0n;
-        },
-      );
-      const value = await entry(confirmedHeight(s));
-      const self = accountFor(s).address;
-      if (
-        !value ||
-        value.amount !== amount ||
-        toBase58(creating ? value.from : value.to) !== self ||
-        toBase58(creating ? value.to : value.from) !== intent.recipient ||
-        (intent.action === "send" &&
-          (value.kind !== 0n || value.state !== 1n)) ||
-        (intent.action === "request" && value.kind !== 1n) ||
-        (intent.action === "approve" && value.state !== 1n) ||
-        (intent.action === "decline" && value.state !== 2n)
-      )
-        throw new ResultPending();
+        const value = await entry(confirmedHeight(s));
+        const self = accountFor(s).address;
+        if (
+          !value ||
+          value.amount !== amount ||
+          toBase58(creating ? value.from : value.to) !== self ||
+          toBase58(creating ? value.to : value.from) !== intent.recipient ||
+          (intent.action === "send" &&
+            (value.kind !== 0n || value.state !== 1n)) ||
+          (intent.action === "request" && value.kind !== 1n) ||
+          (intent.action === "approve" && value.state !== 1n) ||
+          (intent.action === "decline" && value.state !== 2n)
+        )
+          throw new ResultPending();
+      });
     },
   };
 }

@@ -153,13 +153,14 @@ try {
     ...target,
   ]);
 } catch (error) {
-  // Someone initialized the token before PayMVC could. Drop it, so that a rerun
-  // deploys a fresh token.
+  // The token was initialized before this PayMVC could bind it: by someone else, or by
+  // an earlier PayMVC deploy that landed although the CLI reported an error. Drop it, so
+  // that a rerun deploys a fresh token and PayMVC.
   if (/AlreadyInitialized/.test(String((error as Error).message))) {
     delete journal.credits;
     save();
     throw new Error(
-      "The credits token was initialized by someone else. Rerun to deploy a new token.",
+      "The credits token is already initialized, by another account or by an earlier PayMVC deploy whose result was not saved. Rerun to deploy a new token and PayMVC.",
     );
   }
   throw error;
