@@ -646,3 +646,44 @@ test("address-only reference supports keyboard access and responsive layouts", a
   await expect(recipient).toHaveValue(address);
   await page.keyboard.press("Escape");
 });
+
+test("a read-only tab cannot recheck a saved request response", async ({
+  page,
+  context,
+}) => {
+  const requester = newSession(config);
+  await fund(accountFor(requester).address);
+  const app = payments(
+    config,
+    requester,
+    () => {},
+    () => {},
+  );
+  await app.setup();
+  const payer = await start(page);
+  await app.execute({
+    action: "request",
+    recipient: payer,
+    amount: "5",
+    id: "",
+    operation: operationId(),
+  });
+  await refresh(page);
+  // The approval cannot be broadcast, so it stays saved and unresolved.
+  await page.route(config.rpcUrl, async (route) =>
+    route.request().postDataJSON().method === "eth_sendRawTransaction"
+      ? route.abort("failed")
+      : route.continue(),
+  );
+  await page.getByRole("button", { name: "Approve", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Recheck original operation" }),
+  ).toBeEnabled();
+  const second = await context.newPage();
+  await second.goto("/");
+  await expect(second.getByText("Read-only tab")).toHaveCount(1);
+  await expect(
+    second.getByRole("button", { name: "Recheck original operation" }),
+  ).toBeDisabled();
+  await page.unrouteAll({ behavior: "wait" });
+});

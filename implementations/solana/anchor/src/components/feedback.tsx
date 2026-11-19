@@ -11,6 +11,8 @@ export interface FeedbackProps {
   unknown: boolean;
   stale?: boolean;
   readOnly?: boolean;
+  /** Show the stale and read-only notices here. One place on the page shows them. */
+  notices?: boolean;
   onRetry: () => void;
   onDismiss: () => void;
 }
@@ -27,9 +29,10 @@ export function Feedback(props: FeedbackProps) {
           ? "Your last operation is unresolved. Recheck or dismiss it in the tab that owns this demo."
           : "Your last operation is unresolved. Recheck it, or dismiss it to continue."
       : "");
-  const visible = Boolean(
-    props.message || props.stale || props.readOnly || problem,
-  );
+  const notices = props.notices ?? true;
+  const stale = notices && props.stale;
+  const readOnlyNotice = notices && props.readOnly;
+  const visible = Boolean(props.message || stale || readOnlyNotice || problem);
   return (
     // The status line stays mounted, so that screen readers announce each change.
     <div className={visible ? "flex flex-col gap-3" : "contents"}>
@@ -50,31 +53,33 @@ export function Feedback(props: FeedbackProps) {
         {props.message}
       </p>
       {/* Notices also live in a region that is always mounted. */}
-      <div
-        role="status"
-        className={
-          props.stale || props.readOnly ? "flex flex-col gap-3" : "sr-only"
-        }
-      >
-        {props.stale ? (
-          <Alert role="none">
-            <AlertTitle>Balance may be out of date</AlertTitle>
-            <AlertDescription>
-              The latest read failed. Your previous balance is retained. Refresh
-              to check again.
-            </AlertDescription>
-          </Alert>
-        ) : null}
-        {props.readOnly ? (
-          <Alert role="none">
-            <AlertTitle>Read-only tab</AlertTitle>
-            <AlertDescription>
-              Another tab owns this demo, or browser locking is unavailable.
-              Close the other tab and reload to make payments here.
-            </AlertDescription>
-          </Alert>
-        ) : null}
-      </div>
+      {notices ? (
+        <div
+          role="status"
+          className={
+            stale || readOnlyNotice ? "flex flex-col gap-3" : "sr-only"
+          }
+        >
+          {stale ? (
+            <Alert role="none">
+              <AlertTitle>Balance may be out of date</AlertTitle>
+              <AlertDescription>
+                The latest read failed. Your previous balance is retained.
+                Refresh to check again.
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          {readOnlyNotice ? (
+            <Alert role="none">
+              <AlertTitle>Read-only tab</AlertTitle>
+              <AlertDescription>
+                Another tab owns this demo, or browser locking is unavailable.
+                Close the other tab and reload to make payments here.
+              </AlertDescription>
+            </Alert>
+          ) : null}
+        </div>
+      ) : null}
       {problem ? (
         <Alert variant="destructive">
           <AlertTitle>

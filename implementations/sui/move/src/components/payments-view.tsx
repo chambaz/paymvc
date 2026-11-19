@@ -161,9 +161,10 @@ export function PaymentsView(props: ViewProps) {
   const createButton = useRef<HTMLButtonElement>(null);
   const resetting = useRef(false);
   useEffect(() => {
-    if (!resetting.current || !createButton.current) return;
+    if (!resetting.current) return;
+    // The first render after a reset decides. If the reset failed, nothing moves.
     resetting.current = false;
-    createButton.current.focus();
+    createButton.current?.focus();
   });
   // The dialog and the request rows show their own progress and errors.
   const elsewhere = Boolean(activeRequest || mode);
@@ -493,6 +494,8 @@ export function PaymentsView(props: ViewProps) {
                         {/* Mounted for every row, so that its first progress text is announced. */}
                         <Feedback
                           {...recovery}
+                          readOnly={props.readOnly}
+                          notices={false}
                           error={row.id === activeRequest ? props.error : ""}
                           pending={row.id === activeRequest && props.pending}
                           message={
