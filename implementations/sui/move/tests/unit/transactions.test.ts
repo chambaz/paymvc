@@ -30,6 +30,7 @@ const config: Deployment = {
   package: normalizeSuiAddress("1"),
   app: normalizeSuiAddress("2"),
   packageDigest: "test",
+  immutableDigest: "publish",
   faucetUrl: "https://faucet.sui.io/",
 };
 async function saved() {
@@ -145,6 +146,25 @@ it("checks absence again after expiry before releasing evidence", async () => {
   ).rejects.toBeInstanceOf(ExpiredTransaction);
   expect(client.getTransaction).toHaveBeenCalledTimes(2);
   expect(s.journal.payment).toBeUndefined();
+});
+it("keeps a transaction whose effect is on chain when history no longer has it", async () => {
+  const s = await saved();
+  client.getCurrentSystemState.mockResolvedValue({
+    systemState: { epoch: "3" },
+  });
+  const persist = vi.fn();
+  // The node reports "not found", but the state shows the payment happened.
+  const hash = await transact(
+    config,
+    s,
+    persist,
+    () => {},
+    "payment",
+    vi.fn(),
+    async () => false,
+  );
+  expect(hash).toBe(s.journal.payment!.hash);
+  expect(s.journal.payment!.confirmed).toBe(true);
 });
 it("accepts a transaction found at the expiry boundary", async () => {
   const s = await saved();

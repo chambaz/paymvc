@@ -149,18 +149,33 @@ const currency = created(`::coin_registry::Currency<${coin}>`);
 if (!packageId || !app || !currency)
   throw new Error("Published package, app, or currency not found.");
 
+// The package can never be upgraded once its UpgradeCap is destroyed. On testnet, the
+// publish transaction passes the new cap to make_immutable, so no cap survives it.
+let immutable = publish;
 if (local) {
   const cap = publish.objectChanges.find((c) =>
     c.objectType?.endsWith("::package::UpgradeCap"),
   )?.objectId;
   if (!cap) throw new Error("Published upgrade capability not found.");
-  execute("immutable", [
+  immutable = execute("immutable", [
     "ptb",
     "--move-call",
     "0x2::package::make_immutable",
     `@${cap}`,
   ]);
-}
+  if (
+    !immutable.objectChanges.some(
+      (c) => c.type === "deleted" && c.objectId === cap,
+    )
+  )
+    throw new Error("The upgrade capability was not destroyed.");
+} else if (
+  publish.objectChanges.some(
+    (c) =>
+      c.objectType?.endsWith("::package::UpgradeCap") && c.type !== "deleted",
+  )
+)
+  throw new Error("The publish transaction left an upgrade capability.");
 const metadata = execute("metadata", [
   "ptb",
   "--move-call",
@@ -178,6 +193,7 @@ const config = parseDeployment({
   package: packageId,
   app,
   packageDigest: pkg.object.digest,
+  immutableDigest: immutable.digest,
   faucetUrl: local ? "http://127.0.0.1:9123/gas" : "https://faucet.sui.io/",
 });
 await verifyDeployment(config);

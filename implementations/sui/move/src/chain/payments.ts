@@ -98,7 +98,18 @@ export async function fundingBudget(c: Deployment, owner: string) {
   const { balance } = await server(c).getBalance({ owner });
   return { balance: BigInt(balance.balance), required: 100_000_000n };
 }
+/** Deployments that passed verification in this page. The package cannot change. */
+const verified = new Set<string>();
+
+/**
+ * Checks the network, the package bytes (its digest), and the shared `App` object. Every
+ * Sui package object is immutable; whether a package can be upgraded depends on its
+ * `UpgradeCap`. The deploy script destroys the cap in the publish transaction
+ * (`immutableDigest`). Public nodes keep about two weeks of history, so the browser cannot
+ * re-check that transaction later; anyone can audit it on an explorer.
+ */
 export async function verifyDeployment(c: Deployment) {
+  if (verified.has(c.app)) return;
   const client = server(c);
   const [chain, pkg, app] = await Promise.all([
     client.getChainIdentifier(),
@@ -108,7 +119,6 @@ export async function verifyDeployment(c: Deployment) {
   if (
     chain.chainIdentifier !== c.chainIdentifier ||
     pkg.object.digest !== c.packageDigest ||
-    pkg.object.owner.$kind !== "Immutable" ||
     app.object.type !== `${c.package}::paymvc::App<${coinType(c)}>` ||
     app.object.owner.$kind !== "Shared"
   ) {
@@ -116,6 +126,7 @@ export async function verifyDeployment(c: Deployment) {
       "Deployment verification failed. Check the network and application configuration.",
     );
   }
+  verified.add(c.app);
 }
 export async function readContacts(c: Deployment, s: Session, start: bigint) {
   const owner = accountFor(s).address;
@@ -238,25 +249,44 @@ export function payments(
   progress: (value: string) => void,
 ) {
   const owner = accountFor(s).address;
+  /** The chain shows the effect of a saved transaction, so it is confirmed. */
+  const confirmSaved = (label: string) => {
+    const record = s.journal[label];
+    if (record && !record.confirmed) {
+      record.confirmed = true;
+      persist();
+    }
+  };
   return {
     async setup() {
       await verifyDeployment(c);
       const saved = s.journal["setup:register"];
-      if (!(await registered(c, owner)) || (saved && !saved.confirmed)) {
+      // Only this wallet can register itself, so membership proves the saved transaction,
+      // even after node history no longer has it.
+      if (await registered(c, owner)) confirmSaved("setup:register");
+      else {
         if (!saved) {
           const funding = await fundingBudget(c, owner);
           if (funding.balance < funding.required) throw new FundingRequired();
         }
         progress("Registering your address and allocating 100 credits");
-        await transact(c, s, persist, progress, "setup:register", async () => {
-          const tx = new Transaction();
-          tx.moveCall({
-            target: `${c.package}::paymvc::register`,
-            typeArguments: [coinType(c)],
-            arguments: [tx.object(c.app)],
-          });
-          return tx;
-        });
+        await transact(
+          c,
+          s,
+          persist,
+          progress,
+          "setup:register",
+          async () => {
+            const tx = new Transaction();
+            tx.moveCall({
+              target: `${c.package}::paymvc::register`,
+              typeArguments: [coinType(c)],
+              arguments: [tx.object(c.app)],
+            });
+            return tx;
+          },
+          async () => !(await registered(c, owner)),
+        );
         if (!(await registered(c, owner))) throw new ResultPending();
       }
       s.ready = true;
@@ -301,32 +331,36 @@ export function payments(
         return found.state === expected;
       };
       const label = `${intent.operation}:${intent.action}`;
-      if ((await check()) && !s.journal[label]) return;
+      // The entry proves the effect, even after node history no longer has the transaction.
+      if (await check()) return confirmSaved(label);
       if (
         owner === intent.recipient ||
         !(await registered(c, owner, intent.recipient))
       )
         throw new Error("Choose a different, registered PayMVC account.");
-      progress(
-        intent.action === "approve"
-          ? "Approving and paying the request"
-          : "Submitting your transaction",
+      await transact(
+        c,
+        s,
+        persist,
+        progress,
+        label,
+        async () => {
+          const tx = new Transaction();
+          // The counterparty: recipient, payer, or requester (checked above).
+          const args = [tx.object(c.app), tx.pure.address(intent.recipient)];
+          if (intent.action === "request") args.push(tx.pure.u64(amount));
+          args.push(tx.pure.vector("u8", fromHex(operation)));
+          if (intent.action === "send" || intent.action === "approve")
+            args.push(await paymentCoin(c, tx, owner, amount));
+          tx.moveCall({
+            target: `${c.package}::paymvc::${intent.action}`,
+            typeArguments: [coinType(c)],
+            arguments: args,
+          });
+          return tx;
+        },
+        async () => !(await check()),
       );
-      await transact(c, s, persist, progress, label, async () => {
-        const tx = new Transaction();
-        // The counterparty: recipient, payer, or requester (checked above).
-        const args = [tx.object(c.app), tx.pure.address(intent.recipient)];
-        if (intent.action === "request") args.push(tx.pure.u64(amount));
-        args.push(tx.pure.vector("u8", fromHex(operation)));
-        if (intent.action === "send" || intent.action === "approve")
-          args.push(await paymentCoin(c, tx, owner, amount));
-        tx.moveCall({
-          target: `${c.package}::paymvc::${intent.action}`,
-          typeArguments: [coinType(c)],
-          arguments: args,
-        });
-        return tx;
-      });
       if (!(await check())) throw new ResultPending();
     },
   };

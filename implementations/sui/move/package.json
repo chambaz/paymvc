@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "check": "tsc --noEmit && prettier --check . && sui move build --path contracts --warnings-are-errors && tsx scripts/validate-manifest.ts",
+    "check": "tsc --noEmit && prettier --check . && sui move build --path contracts --warnings-are-errors --lint && tsx scripts/validate-manifest.ts",
     "format": "prettier --write .",
     "build": "tsc --noEmit && vite build",
     "test": "sui move test --path contracts && vitest run",

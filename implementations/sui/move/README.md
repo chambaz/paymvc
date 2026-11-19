@@ -4,7 +4,7 @@ PayMVC on Sui Testnet uses native zero-decimal `Coin<CREDITS>` assets and one di
 
 ## 1. Run
 
-Use Sui CLI 1.83.1 and Node 24.21.0. Install the Testnet CLI with `suiup install sui@testnet` and verify the version before building.
+Use Sui CLI 1.83.1 and Node 24.21.0. Install that CLI version with `suiup install sui@testnet-1.83.1` and verify it with `sui --version` before building.
 
 Run these commands from this directory, including when you copy it outside the repository:
 
@@ -28,7 +28,7 @@ The contract has two Move modules:
 - [`paymvc::credits`](contracts/sources/credits.move) defines the `CREDITS` one-time witness and creates the coin. Its `init` moves the mint capability (`TreasuryCap`) into the shared app.
 - [`paymvc::paymvc`](contracts/sources/paymvc.move) holds the app: directory, entries, activity, and all authorization and state rules.
 
-`App` is generic over the coin type (`App<phantom T>`). This lets `credits::init` create the app without a module cycle. `create` is `public(package)`, so the published `App<CREDITS>` is the only instance. Only `register` can mint, and it mints with `coin::mint_and_transfer`.
+`App` is generic over the coin type (`App<phantom T>`). This lets `credits::init` create the app without a module cycle. `create` is `public(package)`, so the published `App<CREDITS>` is the only instance. Only `register` can mint. It mints into the account's address balance with `balance::send_funds`.
 
 | Function       | Signature                                                 |
 | -------------- | --------------------------------------------------------- |
@@ -56,7 +56,7 @@ Errors are numbered `E_` constants: `E_ALREADY_REGISTERED` (1), `E_NOT_REGISTERE
 
 ### Native differences from the canonical interface
 
-- **The shared `App` object is an argument.** Sui functions change the objects that they receive, so every call passes the app.
+- **The shared `App` object is an argument.** Sui functions change the objects that they receive, so every call passes the app. Every write goes through consensus on this one object, in order. The global directory order and the per-sender deduplication need shared state, so this is the simplest correct design; under heavy load, Sui can cancel transactions for congestion on the object. The client reports such a cancellation as a failure, and an explicit retry signs again.
 - **The caller is `ctx.sender()`.** The transaction signer is the caller, so no address argument is needed.
 - **`send` and `approve` take a `Coin<CREDITS>`, not an amount.** The signer passes a coin. The contract cannot take coins from an account. For `send`, the amount is the coin value, and the contract checks it. For `approve`, the coin value must equal the request amount. If the payer has too few credits, the client cannot build the coin, so the request stays `Pending`.
 - **`decline` takes no coin.** A payer with no credits can decline.
@@ -69,7 +69,9 @@ Errors are numbered `E_` constants: `E_ALREADY_REGISTERED` (1), `E_NOT_REGISTERE
 
 The UI reads five contacts and 50 activity entries initially. It reads token balances directly, including native address balances.
 
-Payments can combine address-balance withdrawals and owned coin objects. Coin selection is limited to 200 objects. A highly fragmented balance must be consolidated first.
+Credits move between address balances: `register` mints into the owner's address balance, and `send` and `approve` deliver the coin with `coin::send_funds`. Address balances merge automatically, so many small payments never fragment into many coin objects. A payment withdraws from the address balance in the same transaction (`tx.withdrawal`) and adds owned coin objects only when an outside transfer delivered some.
+
+The contract emits `Registered`, `Created`, and `Resolved` events. The app reads state, not events; the events let explorers and indexers follow payments.
 
 [Transactions](src/chain/transactions.ts) handles signed evidence and recovery. No indexer or application backend is required.
 
@@ -87,7 +89,9 @@ Before broadcast, the implementation saves signed bytes, signature, digest, expi
 
 Confirmation requires successful transaction effects and the expected application state. The client finds that state with `entry(from, operation)`. A send or request is confirmed when its entry exists and matches the saved intent. An approval or decline is confirmed when the request has the expected state. A second entry with the same `(from, operation)` fails with `E_OPERATION_USED`, so a retry cannot pay twice. An indexed-transaction wait is bounded to 30 seconds. Sui consensus provides finality, so there are no reorganizations to handle. The application does not use an EVM-style confirmation count or speculative balance updates. A failed RPC read retains the last displayed balance.
 
-Transactions use `ValidDuring` through the next epoch, so a saved transaction can stay valid for up to two epochs (about 48 hours on Testnet). Sui validators reject the `ValidDuring` timestamp fields as not yet supported, so a shorter window is not available. Expiry requires a later epoch, retained checkpoint history covering preparation, and a second absent-digest lookup. If history is unavailable, the outcome remains unknown.
+Transactions use `ValidDuring` through the next epoch, so a saved transaction can stay valid for up to two epochs (about 48 hours on Testnet). Sui validators reject the `ValidDuring` timestamp fields as not yet supported, so a shorter window is not available. Expiry requires a later epoch, retained checkpoint history covering preparation, a second absent-digest lookup, and current state without the operation's effect. The state check matters because public nodes keep about two weeks of history and can balance requests across nodes: a "not found" alone cannot prove that a transaction never executed. If history is unavailable, the outcome remains unknown. When the expected entry or registration is already on chain, it confirms the saved transaction directly, even after history no longer covers it.
+
+A failed dry run names the contract's abort, for example "Choose a different, registered PayMVC account." for `E_NOT_REGISTERED`. Nothing is signed in that case.
 
 A failed broadcast keeps the saved transaction and reports an unknown outcome. Most rejections can change: an object can appear, an address balance can grow, a lagging validator can report expiry early, and a consumed object version can mean that the same transaction already executed. The one exception is a chain ID mismatch, which is permanent. The app then removes the saved transaction and reports that the network rejected it. A failed transaction, a permanent rejection, or proven expiry permits an explicit retry. Browser setup makes at most one automatic recovery attempt; payment result reconciliation is also bounded.
 
@@ -99,7 +103,7 @@ Web Locks prevent a second tab from writing. Reset removes the current local wal
 sui client ptb --publish contracts --assign upgrade_cap --move-call 0x2::package::make_immutable upgrade_cap
 ```
 
-`npm run deploy` runs this command through the Sui CLI. One transaction publishes the package and makes it immutable. A second CLI transaction (`0x2::coin_registry::finalize_registration`) finalizes the coin's registry entry. The script then reads the CLI JSON output, verifies the deployment, and writes `public/deployment.json`.
+`npm run deploy` runs this command through the Sui CLI. One transaction publishes the package and passes its `UpgradeCap` to `make_immutable`, which destroys it. The script checks that no `UpgradeCap` survives and records that transaction as `immutableDigest` in the deployment record, so anyone can audit it on an explorer. Every Sui package object is immutable; only the `UpgradeCap` can publish an upgrade that changes the shared `App`. The browser checks the package digest and the `App` object once per page load. It cannot re-check `immutableDigest` later, because public nodes keep about two weeks of transaction history. A second CLI transaction (`0x2::coin_registry::finalize_registration`) finalizes the coin's registry entry. The script then reads the CLI JSON output, verifies the deployment, and writes `public/deployment.json`.
 
 The script creates `.local/testnet-deployer.json` if needed and prints only its address. Fund that address with at least 0.2 SUI, then rerun. The script writes a private CLI config and keystore to `.local/sui-testnet/` (mode 0600). The key never goes into command arguments or output.
 

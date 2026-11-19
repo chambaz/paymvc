@@ -5,7 +5,9 @@
 /// `App<CREDITS>` is the only instance.
 module paymvc::paymvc;
 
+use sui::balance;
 use sui::coin::{Self, Coin, TreasuryCap};
+use sui::event;
 use sui::table::{Self, Table};
 
 const E_ALREADY_REGISTERED: u64 = 1;
@@ -57,6 +59,15 @@ public struct Entry has copy, drop, store {
     state: State,
 }
 
+/// An account registered and received its allocation.
+public struct Registered has copy, drop { account: address }
+
+/// A transfer or request was created. `to` is the recipient or the intended payer.
+public struct Created has copy, drop { from: address, to: address, operation: vector<u8>, amount: u64, kind: Kind }
+
+/// A request was paid or declined.
+public struct Resolved has copy, drop { from: address, operation: vector<u8>, state: State }
+
 public(package) fun create<T>(treasury: TreasuryCap<T>, ctx: &mut TxContext) {
     transfer::share_object(App {
         id: object::new(ctx),
@@ -68,40 +79,44 @@ public(package) fun create<T>(treasury: TreasuryCap<T>, ctx: &mut TxContext) {
 }
 
 /// Add the caller to the directory and give it 100 credits, once.
+/// Credits go to the account's address balance, so payments never fragment into many coins.
 public fun register<T>(app: &mut App<T>, ctx: &mut TxContext) {
     let account = ctx.sender();
     assert!(!app.profiles.contains(account), E_ALREADY_REGISTERED);
     let index = app.members.length();
     app.members.add(index, account);
     app.profiles.add(account, Profile { activity: table::new(ctx) });
-    coin::mint_and_transfer(&mut app.treasury, ALLOCATION, account, ctx);
+    balance::send_funds(coin::mint_balance(&mut app.treasury, ALLOCATION), account);
+    event::emit(Registered { account });
 }
 
 /// Pay `to` with `payment`. The amount is the coin's value.
-public fun send<T>(app: &mut App<T>, to: address, operation: vector<u8>, payment: Coin<T>, ctx: &TxContext) {
+public fun send<T>(app: &mut App<T>, to: address, operation: vector<u8>, payment: Coin<T>, ctx: &mut TxContext) {
     let from = ctx.sender();
     let amount = payment.value();
     record(app, Entry { from, to, operation, amount, kind: Kind::Transfer, state: State::Paid });
-    transfer::public_transfer(payment, to);
+    coin::send_funds(payment, to);
 }
 
 /// Ask `payer` for `amount`. No funds are reserved.
-public fun request<T>(app: &mut App<T>, payer: address, amount: u64, operation: vector<u8>, ctx: &TxContext) {
+public fun request<T>(app: &mut App<T>, payer: address, amount: u64, operation: vector<u8>, ctx: &mut TxContext) {
     let from = ctx.sender();
     record(app, Entry { from, to: payer, operation, amount, kind: Kind::Request, state: State::Pending });
 }
 
 /// Pay the pending request `(from, operation)` with a coin of exactly its amount.
-public fun approve<T>(app: &mut App<T>, from: address, operation: vector<u8>, payment: Coin<T>, ctx: &TxContext) {
+public fun approve<T>(app: &mut App<T>, from: address, operation: vector<u8>, payment: Coin<T>, ctx: &mut TxContext) {
     let entry = pending(app, from, operation, ctx);
     assert!(payment.value() == entry.amount, E_INVALID_AMOUNT);
     entry.state = State::Paid;
-    transfer::public_transfer(payment, from);
+    coin::send_funds(payment, from);
+    event::emit(Resolved { from, operation, state: State::Paid });
 }
 
 /// Refuse the pending request `(from, operation)`. No funds move.
-public fun decline<T>(app: &mut App<T>, from: address, operation: vector<u8>, ctx: &TxContext) {
+public fun decline<T>(app: &mut App<T>, from: address, operation: vector<u8>, ctx: &mut TxContext) {
     pending(app, from, operation, ctx).state = State::Declined;
+    event::emit(Resolved { from, operation, state: State::Declined });
 }
 
 fun record<T>(app: &mut App<T>, entry: Entry) {
@@ -115,6 +130,7 @@ fun record<T>(app: &mut App<T>, entry: Entry) {
     app.entries.add(key, entry);
     append(app, entry.from, key);
     append(app, entry.to, key);
+    event::emit(Created { from: entry.from, to: entry.to, operation: entry.operation, amount: entry.amount, kind: entry.kind });
 }
 
 fun append<T>(app: &mut App<T>, account: address, key: EntryKey) {
@@ -124,7 +140,7 @@ fun append<T>(app: &mut App<T>, account: address, key: EntryKey) {
 }
 
 /// The request `(from, operation)`, checked to be pending and payable by the caller.
-fun pending<T>(app: &mut App<T>, from: address, operation: vector<u8>, ctx: &TxContext): &mut Entry {
+fun pending<T>(app: &mut App<T>, from: address, operation: vector<u8>, ctx: &mut TxContext): &mut Entry {
     let key = EntryKey { from, operation };
     assert!(app.entries.contains(key), E_NOT_FOUND);
     let entry = app.entries.borrow_mut(key);
@@ -141,7 +157,9 @@ public fun profile_count<T>(app: &App<T>): u64 { app.members.length() }
 /// Registered accounts in registration order, from index `start`.
 public fun profiles<T>(app: &App<T>, start: u64, limit: u64): vector<address> {
     assert!(limit > 0 && limit <= PAGE_LIMIT, E_INVALID_PAGE);
-    let end = (start + limit).min(app.members.length());
+    let count = app.members.length();
+    if (start >= count) return vector[];
+    let end = (start + limit).min(count);
     let mut accounts = vector[];
     let mut index = start;
     while (index < end) {
@@ -180,4 +198,19 @@ public fun new_entry(from: address, to: address, operation: vector<u8>, amount: 
     let kind = if (request) Kind::Request else Kind::Transfer;
     let state = if (state == 0) State::Pending else if (state == 1) State::Paid else State::Declined;
     Entry { from, to, operation, amount, kind, state }
+}
+
+#[test_only]
+public fun new_registered(account: address): Registered { Registered { account } }
+
+#[test_only]
+public fun new_created(from: address, to: address, operation: vector<u8>, amount: u64, request: bool): Created {
+    let kind = if (request) Kind::Request else Kind::Transfer;
+    Created { from, to, operation, amount, kind }
+}
+
+#[test_only]
+public fun new_resolved(from: address, operation: vector<u8>, paid: bool): Resolved {
+    let state = if (paid) State::Paid else State::Declined;
+    Resolved { from, operation, state }
 }
