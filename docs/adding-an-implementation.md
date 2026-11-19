@@ -46,7 +46,7 @@ These files are shared. Copy them without changes:
 - `public/theme.js`
 - `public/favicon.svg`, `public/favicon.ico`, and `public/apple-touch-icon.png`, copies of the files that `web/scripts/assets.mjs` makes
 - `tests/conformance/*`
-- `implementation.schema.json`
+- `implementation.schema.json` and `evidence.schema.json`
 
 If a shared file must change, change it in every implementation in the same pull request.
 
@@ -77,7 +77,12 @@ Follow [transaction recovery](recovery.md). Save each signed transaction before 
 
 ### 5. Add the chain to the selector
 
-Every implementation's selector lists all implementations. Add yours to the `implementations` list in `src/components/payments-view.tsx`, with a `VITE_<CHAIN>_URL` variable and a local port, and copy the changed file to every implementation. Use the next free ports from this table: one for `npm run dev`, and the next one for the browser tests.
+Every implementation's selector lists all implementations. Add yours to the `implementations` list in `src/components/payments-view.tsx`, with a `VITE_<CHAIN>_URL` variable and a local port, and copy the changed file to every implementation. Then:
+
+- Add your destination to the `switching.spec.ts` browser test in each implementation, and to the destination list in Thruput's selector test (`tests/e2e/payments.spec.ts`).
+- Set `VITE_<CHAIN>_URL` to your hosted address in the hosting settings of every site, including the landing page. On Railway, these are service variables.
+
+Use the next free ports from this table: one for `npm run dev`, and the next one for the browser tests. Some implementations also serve `npm run local` on their browser test port.
 
 | Implementation        | `npm run dev` | Browser tests |
 | --------------------- | ------------- | ------------- |
@@ -91,7 +96,7 @@ Every implementation's selector lists all implementations. Add yours to the `imp
 | Aptos                 | 5185          | 5186          |
 | Robinhood             | 5187          |               |
 | Thruput               | 5189          | 5190          |
-| EVM network tests     |               | 5191          |
+| EVM network tests     |               | 5198          |
 | EVM visual tests      |               | 5199          |
 
 The four EVM networks share one browser test port.
@@ -117,6 +122,7 @@ Add the implementation to each place that lists the implementations:
 - the native differences table in `docs/contract-interface.md`
 - the selector order in `docs/ui.md`
 - the network list in `web/src/main.tsx`, with a monochrome icon in `web/src/assets/networks/` and its source in `web/src/assets/README.md`
+- the `networks` list in `web/scripts/assets.mjs`, which draws the link preview image. Run `npm run assets` in `web/` and commit the new `web/public/og.png`.
 
 Write a README with these sections:
 

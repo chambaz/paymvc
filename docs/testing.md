@@ -22,7 +22,7 @@ Use a fresh local deployment for a fixed contact order. Public runs must allow f
 
 ### Driver
 
-The scenario calls a `ScenarioDriver`, which each implementation writes for its chain in its browser and live tests. A and B each have their own browser context. For an example, see the canonical test in `implementations/ethereum/foundry/tests/e2e/payments.spec.ts`.
+The scenario calls a `ScenarioDriver`, which each implementation writes for its chain in its browser tests. Live tests run the same steps, either through a driver (Ethereum, Solana) or through a chain script such as `scripts/live.ts` (Aptos, Stellar, Sui, Thruput). A and B each have their own browser context. For an example, see the canonical test in `implementations/ethereum/foundry/tests/e2e/payments.spec.ts`.
 
 | Method                                      | What it does                                                                                                           |
 | ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |

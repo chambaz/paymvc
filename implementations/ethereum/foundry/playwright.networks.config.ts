@@ -9,7 +9,7 @@ export default defineConfig({
   use: {
     // Dialogs open without animation, so that axe checks the final colors.
     reducedMotion: "reduce",
-    baseURL: "http://127.0.0.1:5191",
+    baseURL: "http://127.0.0.1:5198",
     trace: "off",
     screenshot: "off",
     video: "off",
@@ -19,8 +19,8 @@ export default defineConfig({
     { name: "mobile", use: { viewport: { width: 390, height: 844 } } },
   ],
   webServer: {
-    command: "npm run preview -- --port 5191 --strictPort",
-    url: "http://127.0.0.1:5191",
+    command: "npm run preview -- --port 5198 --strictPort",
+    url: "http://127.0.0.1:5198",
     reuseExistingServer: false,
     timeout: 180000,
     gracefulShutdown: { signal: "SIGTERM", timeout: 5000 },
