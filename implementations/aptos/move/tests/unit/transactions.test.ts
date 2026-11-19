@@ -393,3 +393,34 @@ it("keeps an expired transaction whose effect is on chain", async () => {
   );
   expect(s.journal.payment!.confirmed).toBe(true);
 });
+
+it("keeps an expired transaction unconfirmed when the state read fails", async () => {
+  const s = saved();
+  client.getLedgerInfo.mockResolvedValue({
+    chain_id: 2,
+    ledger_version: "77",
+    ledger_timestamp: "2000000000",
+    oldest_ledger_version: "0",
+  });
+  const absent = async (): Promise<boolean> => {
+    throw new Error("429 Too Many Requests");
+  };
+  await expect(
+    transact(c, s, vi.fn(), () => {}, "payment", vi.fn(), absent),
+  ).rejects.toBeInstanceOf(UnknownOutcome);
+  expect(s.journal.payment!.confirmed).toBe(false);
+});
+
+it("keeps a replaced transaction unconfirmed when the state read fails", async () => {
+  const s = saved();
+  client.getAccountTransactions.mockResolvedValue([
+    { type: "user_transaction", hash: `0x${"9".repeat(64)}`, version: "12" },
+  ]);
+  const absent = async (): Promise<boolean> => {
+    throw new Error("429 Too Many Requests");
+  };
+  await expect(
+    transact(c, s, vi.fn(), () => {}, "payment", vi.fn(), absent),
+  ).rejects.toBeInstanceOf(UnknownOutcome);
+  expect(s.journal.payment!.confirmed).toBe(false);
+});

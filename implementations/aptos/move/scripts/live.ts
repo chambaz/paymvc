@@ -27,6 +27,7 @@ const c = parseDeployment(
     ),
   ),
   local ? undefined : process.env.VITE_RPC_URL,
+  local ? undefined : process.env.VITE_APTOS_API_KEY,
 );
 const dir = `.local/live-${c.publishHash}`;
 mkdirSync(dir, { recursive: true, mode: 0o700 });

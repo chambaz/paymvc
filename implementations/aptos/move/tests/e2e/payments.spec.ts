@@ -35,6 +35,7 @@ const config = () =>
       ),
     ),
     live ? process.env.VITE_RPC_URL : undefined,
+    live ? process.env.VITE_APTOS_API_KEY : undefined,
   );
 function save(path: string, value: unknown) {
   writeFileSync(`${path}.tmp`, JSON.stringify(value), { mode: 0o600 });
@@ -399,7 +400,7 @@ test("failed payments roll back state and competing resolutions settle once", as
       101n,
       operationBytes(op(1)),
     ]),
-  ).rejects.toThrow();
+  ).rejects.toThrow("Not enough demo credits or APT for gas");
   await expect(
     submit(a, "overspend", "send", [
       accountFor(b).address,

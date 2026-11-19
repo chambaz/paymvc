@@ -113,6 +113,11 @@ export async function transact(
     });
     return found?.type === "user_transaction" ? found : undefined;
   };
+  /** Current state shows the operation's effect. A failed read proves nothing either way. */
+  const effectOnChain = async () =>
+    !(await absent().catch(() => {
+      throw new UnknownOutcome();
+    }));
   let result: TransactionResponse | undefined;
   try {
     result = await client.getTransactionByHash({
@@ -123,7 +128,7 @@ export async function transact(
       throw new UnknownOutcome();
     const used = await atSequence().catch(() => undefined);
     if (used && used.hash !== record.hash) {
-      if (!(await absent().catch(() => false))) return finish(used.version);
+      if (await effectOnChain()) return finish(used.version);
       throw release(new ReplacedTransaction());
     }
     if (used) result = used;
@@ -148,8 +153,7 @@ export async function transact(
           if (!(error instanceof AptosApiError) || error.status !== 404)
             throw new UnknownOutcome();
           // The effect may still be on chain if this node missed the commit.
-          if (!(await absent().catch(() => false)))
-            return finish(ledger.ledger_version);
+          if (await effectOnChain()) return finish(ledger.ledger_version);
           throw release(new ExpiredTransaction());
         }
       } else {
