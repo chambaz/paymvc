@@ -1,8 +1,8 @@
 #![no_std]
 
 use soroban_sdk::{
-    Address, BytesN, Env, IntoVal, Val, Vec, contract, contractclient, contracterror, contractimpl,
-    contracttype, panic_with_error, token,
+    Address, BytesN, Env, IntoVal, Val, Vec, contract, contractclient, contracterror,
+    contractevent, contractimpl, contracttype, panic_with_error, token,
 };
 
 const ALLOCATION: i128 = 100;
@@ -52,6 +52,37 @@ pub struct Entry {
     pub operation: BytesN<32>,
     pub amount: i128,
     pub kind: Kind,
+    pub state: State,
+}
+
+/// An account registered and received its allocation.
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Registered {
+    #[topic]
+    pub account: Address,
+}
+
+/// A transfer or request was created. `to` is the recipient or the intended payer.
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Created {
+    #[topic]
+    pub from: Address,
+    #[topic]
+    pub to: Address,
+    pub operation: BytesN<32>,
+    pub amount: i128,
+    pub kind: Kind,
+}
+
+/// A request was paid or declined.
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Resolved {
+    #[topic]
+    pub from: Address,
+    pub operation: BytesN<32>,
     pub state: State,
 }
 
@@ -146,6 +177,9 @@ fn create(e: &Env, from: Address, to: Address, amount: i128, operation: BytesN<3
     if entry(e, &from, &operation).is_some() {
         panic_with_error!(e, Error::OperationUsed);
     }
+    // Active profiles stay live, so a payment rarely has to restore an archived one.
+    keep(e, Some(&Key::Profile(from.clone())));
+    keep(e, Some(&Key::Profile(to.clone())));
     let state = match kind {
         Kind::Transfer => {
             token(e).transfer(&from, &to, &amount);
@@ -165,6 +199,14 @@ fn create(e: &Env, from: Address, to: Address, amount: i128, operation: BytesN<3
     save(e, &key, &record);
     append(e, &from, &from, &operation);
     append(e, &to, &from, &operation);
+    Created {
+        from,
+        to,
+        operation,
+        amount,
+        kind,
+    }
+    .publish(e);
 }
 
 /// Loads a Pending request that `payer` may resolve. The payer must sign.
@@ -177,6 +219,7 @@ fn pending(e: &Env, payer: &Address, from: &Address, operation: &BytesN<32>) -> 
     if record.kind != Kind::Request || record.state != State::Pending {
         panic_with_error!(e, Error::NotPending);
     }
+    keep(e, Some(&Key::Profile(payer.clone())));
     record
 }
 
@@ -184,6 +227,12 @@ fn finish(e: &Env, mut record: Entry, state: State) {
     record.state = state;
     let key = Key::Entry(record.from.clone(), record.operation.clone());
     save(e, &key, &record);
+    Resolved {
+        from: record.from,
+        operation: record.operation,
+        state,
+    }
+    .publish(e);
 }
 
 #[contract]
@@ -216,6 +265,7 @@ impl PayMVC {
         save(&e, &Key::Profile(owner.clone()), &());
         save(&e, &Key::Member(index), &owner);
         CreditsClient::new(&e, &token(&e).address).mint(&owner, &ALLOCATION);
+        Registered { account: owner }.publish(&e);
     }
 
     pub fn send(e: Env, from: Address, to: Address, amount: i128, operation: BytesN<32>) {

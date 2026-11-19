@@ -9,10 +9,10 @@
   "scripts": {
     "dev": "vite --host 127.0.0.1 --port 5181",
     "build": "tsc --noEmit && vite build",
-    "check": "tsc --noEmit && prettier --check . && cargo fmt --check && tsx scripts/validate-manifest.ts",
+    "check": "tsc --noEmit && prettier --check . && cargo fmt --check && tsx scripts/generate-spec.ts --check && tsx scripts/validate-manifest.ts",
     "format": "prettier --write . && cargo fmt",
     "test": "cargo test --locked && vitest run",
-    "contracts:build": "stellar contract build",
+    "contracts:build": "stellar contract build && tsx scripts/generate-spec.ts",
     "test:e2e": "playwright test",
     "test:live:browser": "LIVE=1 playwright test --grep 'canonical independent-user'",
     "test:conformance": "node ../../../conformance/verify.mjs",

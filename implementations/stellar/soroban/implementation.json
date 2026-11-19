@@ -21,7 +21,7 @@
   "toolchains": {
     "rust": "1.96.0",
     "soroban-sdk": "29.0.1",
-    "stellar-cli": "26.1.0",
+    "stellar-cli": "30.0.1",
     "node": "24.21.0"
   }
 }

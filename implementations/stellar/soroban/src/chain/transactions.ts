@@ -2,7 +2,6 @@ import {
   Account,
   Contract,
   rpc,
-  scValToNative,
   Transaction,
   TransactionBuilder,
   xdr,
@@ -10,6 +9,19 @@ import {
 import { Buffer } from "buffer";
 import { server, type Deployment } from "./config";
 import { signerFor, type Session } from "./session";
+import { simulationError } from "./errors";
+
+/**
+ * The inclusion fee in stroops: the network's recent 90th percentile, at least the
+ * minimum and at most 0.01 XLM. A fee above the market lands faster under surge
+ * pricing, so a saved transaction rarely expires.
+ */
+export function inclusionFee(p90: string) {
+  const fee = Number(p90);
+  return String(
+    Number.isFinite(fee) ? Math.min(Math.max(fee, 10_000), 100_000) : 10_000,
+  );
+}
 
 export class UnknownOutcome extends Error {
   constructor() {
@@ -56,7 +68,7 @@ export async function readContract(
   contract: string,
   method: string,
   args: xdr.ScVal[] = [],
-): Promise<unknown> {
+): Promise<xdr.ScVal> {
   // Simulation does not consume the account sequence or broadcast a transaction.
   const tx = new TransactionBuilder(new Account(source, "0"), {
     fee: "100",
@@ -68,7 +80,7 @@ export async function readContract(
   const result = await server(c).simulateTransaction(tx);
   if (!rpc.Api.isSimulationSuccess(result) || !result.result)
     throw new Error("The contract read could not be completed. Please retry.");
-  return scValToNative(result.result.retval);
+  return result.result.retval;
 }
 
 export type Progress = (message: string) => void;
@@ -86,10 +98,13 @@ export async function transact(
   if (!record) {
     progress("Preparing transaction");
     const signer = signerFor(s);
-    const ledger = await client.getLatestLedger();
-    const account = await client.getAccount(signer.publicKey());
+    const [ledger, account, fees] = await Promise.all([
+      client.getLatestLedger(),
+      client.getAccount(signer.publicKey()),
+      client.getFeeStats(),
+    ]);
     const builder = new TransactionBuilder(account, {
-      fee: "10000",
+      fee: inclusionFee(fees.sorobanInclusionFee.p90),
       networkPassphrase: c.passphrase,
     });
     for (const op of await operations()) builder.addOperation(op);
@@ -100,7 +115,7 @@ export async function transact(
     const sim = await client.simulateTransaction(draft);
     if (!rpc.Api.isSimulationSuccess(sim))
       throw new Error(
-        "The contract could not prepare this step. Check credits and XLM funding, then retry.",
+        simulationError(rpc.Api.isSimulationError(sim) ? sim.error : ""),
       );
     if (rpc.Api.isSimulationRestore(sim))
       throw new Error(

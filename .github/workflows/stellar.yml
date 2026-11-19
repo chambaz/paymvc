@@ -35,8 +35,8 @@ jobs:
           rustup toolchain install 1.96.0 --profile minimal --component rustfmt --component clippy --target wasm32v1-none
           rustup override set 1.96.0
           # The pinned release binary, checked against its published SHA-256. Faster than building from source.
-          curl --fail --location --retry 3 https://github.com/stellar/stellar-cli/releases/download/v26.1.0/stellar-cli-26.1.0-x86_64-unknown-linux-gnu.tar.gz -o "$RUNNER_TEMP/stellar.tgz"
-          echo "e18d5a7629102e1ccc07241acbcbebfc05b1c02476ce7d3204ba2d7418be5c0c  $RUNNER_TEMP/stellar.tgz" | sha256sum --check
+          curl --fail --location --retry 3 https://github.com/stellar/stellar-cli/releases/download/v30.0.1/stellar-cli-30.0.1-x86_64-unknown-linux-gnu.tar.gz -o "$RUNNER_TEMP/stellar.tgz"
+          echo "48c70074020e09af0a3ebbd2bf62d53c9aec47935e49a112d3cd90fb4e37658f  $RUNNER_TEMP/stellar.tgz" | sha256sum --check
           mkdir -p "$HOME/.local/bin"
           tar -xzf "$RUNNER_TEMP/stellar.tgz" -C "$HOME/.local/bin" stellar
           echo "$HOME/.local/bin" >> "$GITHUB_PATH"
