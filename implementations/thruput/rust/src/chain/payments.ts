@@ -67,7 +67,8 @@ const deploymentId = (c: Deployment) =>
 
 /**
  * Checks the network, both contract code hashes, the token that PayMVC binds, and its
- * zero decimals, once per page load. A failed check is retried on the next call.
+ * zero decimals, once per page load and again after any failed read or write. A failed
+ * check is retried on the next call.
  */
 export function verifyDeployment(c: Deployment) {
   const id = deploymentId(c);

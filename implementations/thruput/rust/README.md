@@ -116,7 +116,7 @@ The general policy is in [transaction recovery](../../../docs/recovery.md).
 
 Setup makes one automatic recheck after five seconds for an unknown outcome or a delayed registration result. Payments make one recheck for a delayed result. A recheck never signs a new transaction. Further recovery needs user action.
 
-Once per page load, before the first read or write, `verifyDeployment` checks:
+Once per page load, before the first read or write, and again after any failed read or write (Futurenet can reset), `verifyDeployment` checks:
 
 - the RPC network hash;
 - each contract's deployed code hash, through `getContractDeployment`;
