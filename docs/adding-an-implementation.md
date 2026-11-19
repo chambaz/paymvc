@@ -80,7 +80,7 @@ Follow [transaction recovery](recovery.md). Save each signed transaction before 
 Every implementation's selector lists all implementations. Add yours to the `implementations` list in `src/components/payments-view.tsx`, with a `VITE_<CHAIN>_URL` variable and a local port, and copy the changed file to every implementation. Then:
 
 - Add your destination to the `switching.spec.ts` browser test in each implementation, and to the destination list in Thruput's selector test (`tests/e2e/payments.spec.ts`).
-- Set `VITE_<CHAIN>_URL` to your hosted address in the hosting settings of every site, including the landing page. On Railway, these are service variables.
+- Set `VITE_<CHAIN>_URL` to your hosted address in the hosting settings of every implementation's site. On Railway, these are service variables. The landing page links only the EVM demo; add your chain to it as described in step 8.
 
 Use the next free ports from this table: one for `npm run dev`, and the next one for the browser tests. Some implementations also serve `npm run local` on their browser test port.
 
