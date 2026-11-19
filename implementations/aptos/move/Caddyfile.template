@@ -1,0 +1,69 @@
+# Railpack's Node static-site Caddyfile, plus security and cache headers and a
+# redirect from www to the bare domain. Railpack fills in the template values at
+# build time. Every implementation uses this file. Only `connect-src` changes: it
+# lists the RPC hosts that the implementation calls from the browser.
+# global options
+{
+	admin off
+	persist_config off
+	auto_https off
+
+	log {
+		format json
+	}
+
+	servers {
+		trusted_proxies static private_ranges 100.0.0.0/8 # trust railway's proxy
+	}
+}
+
+# site block, listens on the $PORT environment variable, automatically assigned by railway
+:{$PORT:80} {
+	log {
+		format json
+	}
+
+	respond /health 200
+
+	# paymvc.com is the canonical address.
+	@www host www.paymvc.com
+	redir @www https://paymvc.com{uri} permanent
+
+	header {
+		# Run only this site's scripts, call only the listed RPC hosts, and never load in a frame.
+		# Inline styles are allowed because UI libraries set them at runtime.
+		Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self' https://api.testnet.aptoslabs.com; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'; upgrade-insecure-requests"
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		Referrer-Policy "no-referrer"
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=(), serial=(), hid=(), bluetooth=()"
+		Cross-Origin-Opener-Policy "same-origin"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		-Server
+	}
+
+	# Vite puts a content hash in each asset name, so assets never change. Other
+	# files, such as the page and the deployment record, are checked on every load.
+	@assets path /assets/*
+	header @assets Cache-Control "public, max-age=31536000, immutable"
+	@mutable not path /assets/*
+	header @mutable Cache-Control "no-cache"
+
+	# serve from the 'dist' folder (Vite builds into the 'dist' folder)
+	root * {{.DIST_DIR}}
+
+	# Handle static files
+	file_server {
+		hide .git
+		hide .env*
+	}
+
+	# Compression with more formats
+	encode {
+		gzip
+		zstd
+	}
+
+	# match against direct against HTML file matches, folder-level index.html, and optionally fallback to root index.html
+	try_files {path} {path}.html {path}/index.html{{if .IndexFallback}} /index.html{{end}}
+}

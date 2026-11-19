@@ -77,6 +77,12 @@ async function implementations() {
 
 const failures = [];
 
+// Each site serves the landing page's Caddy configuration. Only the RPC hosts
+// in `connect-src` change.
+const withoutRpcHosts = (text) =>
+  text?.replace(/connect-src 'self'[^;"]*/, "connect-src 'self'");
+const caddyfile = await read(join(root, "web/Caddyfile.template"));
+
 // Committed evidence is complete: one chain run and one browser run for each
 // viewport. Each implementation validates the full shape against its schema copy.
 function checkEvidence(path, text) {
@@ -137,6 +143,13 @@ for (const folder of await implementations()) {
       (await read(join(folder, local))) !== (await read(join(root, canonical)))
     )
       failures.push(`${name}/${local} differs from ${canonical}`);
+  if (
+    withoutRpcHosts(await read(join(folder, "Caddyfile.template"))) !==
+    caddyfile
+  )
+    failures.push(
+      `${name}/Caddyfile.template differs from web/Caddyfile.template outside connect-src`,
+    );
   for (const file of await readdir(join(folder, "evidence")).catch(() => []))
     if (file.endsWith(".json"))
       failures.push(

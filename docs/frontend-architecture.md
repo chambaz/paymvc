@@ -92,4 +92,6 @@ These files must be identical in every implementation:
 - `public/theme.js`
 - `public/favicon.svg`, `public/favicon.ico`, and `public/apple-touch-icon.png`, copies of the files that `web/scripts/assets.mjs` makes
 
+`Caddyfile.template`, the hosted site's headers, is a copy of `web/Caddyfile.template`. Only the RPC hosts in `connect-src` differ.
+
 A change to one of these files must be applied to every implementation in the same pull request. `node conformance/verify.mjs` checks them: run it from the repository root to check every implementation, or from one implementation folder to check that folder.

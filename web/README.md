@@ -27,7 +27,13 @@ Run `npm run check` before you commit. It runs the type check and the Prettier c
 | ------------------- | ----------------------------------------- | ------------------------------------ |
 | `VITE_ETHEREUM_URL` | `http://127.0.0.1:5173/?network=ethereum` | The demo that **Launch Demo** opens. |
 
-On Railway, Caddy serves the build with `Caddyfile.template`: Railpack's default Node template plus a permanent redirect from `www.paymvc.com` to `paymvc.com`.
+On Railway, Caddy serves the build with `Caddyfile.template`: Railpack's default Node template, a permanent redirect from `www.paymvc.com` to `paymvc.com`, and these headers:
+
+- A Content Security Policy. It allows only this site's scripts, styles, fonts, and images, and blocks frames, plugins, and form posts. `connect-src` lists the hosts the app may call.
+- HSTS, `Referrer-Policy: no-referrer`, a `Permissions-Policy` that turns off device APIs, `Cross-Origin-Opener-Policy: same-origin`, and `nosniff`.
+- `Cache-Control`: hashed files in `/assets/` are cached for a year. Every other file, including the page and the deployment record, is checked on each load.
+
+Each implementation has a copy of this file. The copies differ only in `connect-src`, which lists the RPC hosts that the implementation calls. `node conformance/verify.mjs` checks this.
 
 To open the local demo, start the EVM implementation too. See [`implementations/ethereum/foundry`](../implementations/ethereum/foundry/README.md).
 
