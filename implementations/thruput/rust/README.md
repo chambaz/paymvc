@@ -161,7 +161,7 @@ npm run test:conformance
 
 `npm test` runs the native contract tests and the unit tests in `tests/unit/`. `npm run contracts:test` builds both RV32 artifacts and runs the same contract scenarios against them. Report native and RV32 results separately. Neither needs a node. The first native build downloads the SDK's test executor. Set `HOGD_DOWNLOAD_CACHE_DIR` to keep that download outside `target/`.
 
-Browser tests in `tests/e2e/` run against a local node. Playwright starts `npm run local` and the tests read `public/local.json`; they never contact Futurenet. The canonical scenario runs on desktop and mobile with real transactions. The tests fund each user from the local deployer key. Traces are off to keep keys out of artifacts. `npm run test:conformance` compares the test snapshots with `conformance/` in the parent repository.
+Browser tests in `tests/e2e/` run against a local node. Playwright starts `npm run local` and the tests read `public/local.json`; they never contact Futurenet. The canonical scenario runs on desktop and mobile with real transactions. The tests fund each user from the local deployer key. Traces are off to keep keys out of artifacts. `npm run test:conformance` compares the shared files, the test snapshots, and the committed evidence with the repository, so it runs only inside the repository.
 
 Public funded acceptance is explicit:
 

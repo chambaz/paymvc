@@ -144,7 +144,7 @@ Contract tests cover allocation, authorization, every canonical error, lifecycle
 
 Visual baselines live only in this implementation, because the view is byte-identical in every implementation (`conformance/verify.mjs` enforces this). `tests/visual/` screenshots the UI fixture in light and dark mode and needs no local chain. `npm run test:visual` compares and `npm run test:visual:update` regenerates the baselines. Both run in the Playwright Docker image, so Docker is required.
 
-In the full repository, `npm run test:conformance` also compares local test-only snapshots with the common contract. This folder's local commands run independently after you copy it out of the repository.
+`npm run test:conformance` compares the shared files, the test snapshots, and the committed evidence with the repository, so it runs only inside the repository. The other commands run independently after you copy this folder out of the repository.
 
 ### The networks
 

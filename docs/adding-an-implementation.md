@@ -107,7 +107,7 @@ Add `implementation.json`. It must validate against `implementation.schema.json`
 
 ### 9. Add CI
 
-Copy an existing workflow in `.github/workflows/` and change the folder, the `paths` filters, and the toolchain steps. It runs `npm run check`, `npm test`, `npm run build`, `npm run test:e2e`, and `npm run test:conformance`. Pin each action to a commit SHA, and check each downloaded toolchain against its published SHA-256.
+Copy an existing workflow in `.github/workflows/` and change the folder, the `paths` filters, and the toolchain steps. It runs `npm run check`, `npm test`, `npm run build`, `npm run test:e2e`, and `npm run test:conformance`. Pin each action to a commit SHA, and pin and verify each toolchain: check a download against its published SHA-256, or install an exact version with a lock file (for example `cargo install --locked`).
 
 ## Pull request checklist
 

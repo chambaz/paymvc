@@ -122,7 +122,7 @@ Run live tests from a clean working tree, so that `revision` is the tested commi
 
 Private user keys stay in `.local/`. Evidence contains no keys or signed transactions. Browser traces, video, and screenshots are disabled for wallet tests to keep keys out of diagnostic artifacts.
 
-`npm run test:conformance` is a separate repository-only snapshot check. The local unit and browser suites do not require the repository.
+`npm run test:conformance` compares the shared files, the test snapshots, and the committed evidence with the repository, so it runs only inside the repository. The local unit and browser suites do not need the repository.
 
 ## References
 

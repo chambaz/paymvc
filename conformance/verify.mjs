@@ -100,7 +100,9 @@ function checkEvidence(path, text) {
     ["chain", evidence.chain],
     ...["desktop", "mobile"].map((viewport) => [
       `${viewport} browser`,
-      evidence.browser?.find((run) => run.viewport === viewport),
+      Array.isArray(evidence.browser)
+        ? evidence.browser.find((run) => run.viewport === viewport)
+        : undefined,
     ]),
   ];
   for (const [name, run] of runs) {
