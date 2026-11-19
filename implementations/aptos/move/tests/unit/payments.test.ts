@@ -33,7 +33,8 @@ const client = vi.hoisted(() => ({
   getAccountResource: vi.fn(),
   getTransactionByHash: vi.fn(),
   view: vi.fn(),
-  transaction: { build: { simple: vi.fn() } },
+  getBalance: vi.fn(),
+  transaction: { build: { simple: vi.fn() }, simulate: { simple: vi.fn() } },
 }));
 vi.mock("../../src/chain/config", async (original) => ({
   ...(await original<typeof import("../../src/chain/config")>()),
@@ -124,8 +125,22 @@ beforeEach(async () => {
   });
   client.getAccountModule.mockResolvedValue({ bytecode: "0x1234" });
   client.getAccountResource.mockResolvedValue({
-    packages: [{ name: "paymvc", upgrade_policy: { policy: 2 } }],
+    packages: [
+      {
+        name: "paymvc",
+        upgrade_policy: { policy: 2 },
+        modules: [{ name: "paymvc" }, { name: "credits" }],
+      },
+    ],
   });
+  client.transaction.build.simple.mockResolvedValue({
+    rawTransaction: { max_gas_amount: 50_000n, gas_unit_price: 100n },
+  });
+  // The wallet holds plenty of APT, and every simulation succeeds.
+  client.getBalance.mockResolvedValue(100_000_000);
+  client.transaction.simulate.simple.mockResolvedValue([
+    { success: true, vm_status: "Executed successfully" },
+  ]);
   client.view.mockImplementation(
     async (args: { payload: { function: string } }) => [
       views[args.payload.function.split("::").at(-1)!],
@@ -279,4 +294,54 @@ it("refuses to resolve a request for another payer", async () => {
     }),
   ).rejects.toThrow("Only the intended payer");
   expect(client.transaction.build.simple).not.toHaveBeenCalled();
+});
+
+it("names a contract abort from the simulation and signs nothing", async () => {
+  const s = newSession(c);
+  client.transaction.simulate.simple.mockResolvedValue([
+    {
+      success: false,
+      vm_status: `Move abort in ${c.package}::paymvc: E_NOT_REGISTERED(0x2): A participant is not registered.`,
+    },
+  ]);
+  await expect(
+    buildCall(c, s, await client.getLedgerInfo(), "request", [
+      recipient,
+      1n,
+      operationBytes(operation),
+    ]),
+  ).rejects.toThrow("Choose a different, registered PayMVC account.");
+});
+
+it("stops before signing when the wallet cannot pay the maximum gas", async () => {
+  const s = newSession(c);
+  client.getBalance.mockResolvedValue(4_999_999);
+  await expect(
+    buildCall(c, s, await client.getLedgerInfo(), "decline", [
+      recipient,
+      operationBytes(operation),
+    ]),
+  ).rejects.toThrow("needs more testnet APT for gas");
+  expect(client.transaction.simulate.simple).not.toHaveBeenCalled();
+});
+
+it("refuses an immutable package that holds other modules", async () => {
+  client.getAccountResource.mockResolvedValue({
+    packages: [
+      {
+        name: "paymvc",
+        upgrade_policy: { policy: 2 },
+        modules: [{ name: "paymvc" }],
+      },
+      {
+        name: "extra",
+        upgrade_policy: { policy: 1 },
+        modules: [{ name: "credits" }],
+      },
+    ],
+  });
+  const { verifyDeployment } = await import("../../src/chain/payments");
+  await expect(verifyDeployment({ ...c })).rejects.toThrow(
+    "Deployment verification failed",
+  );
 });

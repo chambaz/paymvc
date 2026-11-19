@@ -3,6 +3,7 @@ module paymvc::paymvc {
     use std::option::{Self, Option};
     use std::signer;
     use aptos_std::table::{Self, Table};
+    use aptos_framework::event;
     use aptos_framework::primary_fungible_store;
     use paymvc::credits;
 
@@ -52,6 +53,30 @@ module paymvc::paymvc {
         state: State,
     }
 
+    #[event]
+    /// An account registered and received its allocation.
+    struct Registered has drop, store {
+        account: address,
+    }
+
+    #[event]
+    /// A transfer or request was created. `to` is the recipient or the intended payer.
+    struct Created has drop, store {
+        from: address,
+        to: address,
+        operation: vector<u8>,
+        amount: u64,
+        kind: Kind,
+    }
+
+    #[event]
+    /// A request was paid or declined.
+    struct Resolved has drop, store {
+        from: address,
+        operation: vector<u8>,
+        state: State,
+    }
+
     struct App has key {
         profiles: Table<u64, address>,
         profile_count: u64,
@@ -80,6 +105,7 @@ module paymvc::paymvc {
         app.profile_count += 1;
         move_to(account, Profile { activity: table::new(), activity_count: 0 });
         credits::mint(owner, ALLOCATION);
+        event::emit(Registered { account: owner });
     }
 
     public entry fun send(
@@ -102,10 +128,12 @@ module paymvc::paymvc {
         let entry = pending(payer, from, operation);
         entry.state = State::Paid;
         primary_fungible_store::transfer(payer, credits::metadata(), from, entry.amount);
+        event::emit(Resolved { from, operation, state: State::Paid });
     }
 
     public entry fun decline(payer: &signer, from: address, operation: vector<u8>) acquires App {
         pending(payer, from, operation).state = State::Declined;
+        event::emit(Resolved { from, operation, state: State::Declined });
     }
 
     fun create(
@@ -124,6 +152,7 @@ module paymvc::paymvc {
         entries.add(key, Entry { from, to, operation, amount, kind, state });
         append_activity(from, key);
         append_activity(to, key);
+        event::emit(Created { from, to, operation, amount, kind });
     }
 
     fun append_activity(owner: address, key: EntryKey) acquires Profile {
@@ -200,6 +229,23 @@ module paymvc::paymvc {
     public fun init_for_test(publisher: &signer) {
         credits::init_for_test(publisher);
         init_module(publisher)
+    }
+
+    #[test_only]
+    public fun registered_event(account: address): Registered { Registered { account } }
+
+    #[test_only]
+    public fun created_event(
+        from: address, to: address, operation: vector<u8>, amount: u64, request: bool
+    ): Created {
+        let kind = if (request) Kind::Request else Kind::Transfer;
+        Created { from, to, operation, amount, kind }
+    }
+
+    #[test_only]
+    public fun resolved_event(from: address, operation: vector<u8>, paid: bool): Resolved {
+        let state = if (paid) State::Paid else State::Declined;
+        Resolved { from, operation, state }
     }
 
     #[test_only]

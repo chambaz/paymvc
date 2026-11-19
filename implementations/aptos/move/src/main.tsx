@@ -12,10 +12,13 @@ async function boot() {
   );
   if (!response.ok) throw new Error("Deployment configuration unavailable.");
   const record = await response.json();
-  // VITE_RPC_URL is a keyed Testnet endpoint; a local node keeps its own URL.
+  // VITE_RPC_URL and VITE_APTOS_API_KEY select a keyed Testnet provider; a
+  // local node keeps its own URL.
+  const testnet = record.network === "testnet";
   const config = parseDeployment(
     record,
-    record.network === "testnet" ? import.meta.env.VITE_RPC_URL : undefined,
+    testnet ? import.meta.env.VITE_RPC_URL : undefined,
+    testnet ? import.meta.env.VITE_APTOS_API_KEY : undefined,
   );
   const query = new QueryClient({
     defaultOptions: { queries: { staleTime: 5_000, retry: 1 } },
@@ -31,8 +34,8 @@ void boot().catch(() =>
     <main className="mx-auto flex max-w-xl flex-col gap-4 p-8">
       <h1 className="text-3xl tracking-tight">PayMVC</h1>
       <p role="alert">
-        This testnet deployment is not available yet. Check the deployment
-        configuration and reload.
+        This deployment is not available yet. Check the deployment configuration
+        and reload.
       </p>
       <p>No wallets have been created or funded.</p>
     </main>,

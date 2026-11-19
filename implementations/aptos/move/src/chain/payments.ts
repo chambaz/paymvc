@@ -12,6 +12,7 @@ import {
 } from "./config";
 import {
   accountFor,
+  signerFor,
   entryId,
   parseAmount,
   parseEntryId,
@@ -20,6 +21,7 @@ import {
   type Intent,
 } from "./session";
 import { transact, ResultPending } from "./transactions";
+import { simulationError } from "./errors";
 
 type Argument = string | bigint | Uint8Array;
 const integer = z.string().regex(/^\d+$/);
@@ -77,10 +79,18 @@ export async function readEntry(
   c: Deployment,
   from: string,
   operation: string,
+  ledgerVersion?: bigint,
 ) {
   const found = z
     .object({ vec: z.array(entrySchema).max(1) })
-    .parse(await view(c, "paymvc::entry", [from, operationBytes(operation)]));
+    .parse(
+      await view(
+        c,
+        "paymvc::entry",
+        [from, operationBytes(operation)],
+        ledgerVersion,
+      ),
+    );
   return found.vec[0];
 }
 export async function readBalance(
@@ -152,27 +162,36 @@ async function checkDeployment(c: Deployment) {
         z.object({
           name: z.string(),
           upgrade_policy: z.object({ policy: z.number() }),
+          modules: z.array(z.object({ name: z.string() })),
         }),
       ),
     })
     .parse(registry);
   const asset = z.object({ inner: address }).parse(metadata);
+  // Policy 2 is immutable: the code at this address can never change. The immutable
+  // package must hold exactly both modules, so no upgradable package can add a mint path.
+  const immutable = packages.packages.find(
+    (p) => p.name === "paymvc" && p.upgrade_policy.policy === 2,
+  );
+  const modules = immutable?.modules.map((m) => m.name).sort();
   if (
     ledger.chain_id !== c.chainId ||
     credits !== c.modules.credits ||
     paymvc !== c.modules.paymvc ||
     asset.inner !== c.metadata ||
-    // Policy 2 is immutable: the code at this address can never change.
-    !packages.packages.some(
-      (p) => p.name === "paymvc" && p.upgrade_policy.policy === 2,
-    )
+    packages.packages.length !== 1 ||
+    modules?.join() !== "credits,paymvc"
   )
     throw new Error(
       "Deployment verification failed. Check the network and application configuration.",
     );
 }
 export async function readContacts(c: Deployment, s: Session, start: bigint) {
-  const count = BigInt(integer.parse(await view(c, "paymvc::profile_count")));
+  // Read the count and the pages at one ledger version, so they agree.
+  const version = BigInt((await latestLedger(c)).ledger_version);
+  const count = BigInt(
+    integer.parse(await view(c, "paymvc::profile_count", [], version)),
+  );
   const owner = accountFor(s).address;
   let cursor = start;
   const addresses: string[] = [];
@@ -180,11 +199,14 @@ export async function readContacts(c: Deployment, s: Session, start: bigint) {
     const page = z
       .array(address)
       .parse(
-        await view(c, "paymvc::profiles", [
-          cursor,
-          BigInt(5 - addresses.length),
-        ]),
+        await view(
+          c,
+          "paymvc::profiles",
+          [cursor, BigInt(5 - addresses.length)],
+          version,
+        ),
       );
+    if (!page.length) break;
     cursor += BigInt(page.length);
     addresses.push(...page.filter((value) => value !== owner));
   }
@@ -226,7 +248,8 @@ export async function readDashboard(c: Deployment, s: Session, limit = 50) {
  */
 export const MAX_GAS_AMOUNT = 50_000;
 
-export function buildCall(
+/** Builds a call without checks. Tests use it to land failing transactions on chain. */
+export function buildRaw(
   c: Deployment,
   s: Session,
   ledger: LedgerInfo,
@@ -247,6 +270,34 @@ export function buildCall(
     },
   });
 }
+/**
+ * Builds a call, then checks it before signing: the wallet must hold the maximum gas
+ * fee, and a simulation must succeed. A failure here changes nothing on chain.
+ */
+export async function buildCall(
+  c: Deployment,
+  s: Session,
+  ledger: LedgerInfo,
+  name: string,
+  args: Argument[] = [],
+): Promise<SimpleTransaction> {
+  const client = server(c);
+  const account = accountFor(s);
+  const transaction = await buildRaw(c, s, ledger, name, args);
+  const { balance } = await fundingBudget(c, account.address);
+  const raw = transaction.rawTransaction;
+  if (balance < raw.max_gas_amount * raw.gas_unit_price)
+    throw new Error(
+      "This wallet needs more testnet APT for gas. Fund its address, then retry.",
+    );
+  const [simulation] = await client.transaction.simulate.simple({
+    signerPublicKey: signerFor(s).publicKey,
+    transaction,
+  });
+  if (!simulation?.success)
+    throw new Error(simulationError(simulation?.vm_status ?? ""));
+  return transaction;
+}
 export function payments(
   c: Deployment,
   s: Session,
@@ -254,18 +305,34 @@ export function payments(
   progress: (value: string) => void,
 ) {
   const owner = accountFor(s).address;
+  /** The chain shows the effect of a saved transaction, so it is confirmed. */
+  const confirmSaved = (label: string) => {
+    const record = s.journal[label];
+    if (record && !record.confirmed) {
+      record.confirmed = true;
+      persist();
+    }
+  };
   return {
     async setup() {
       await verifyDeployment(c);
       const saved = s.journal["setup:register"];
-      if (!(await registered(c, owner)) || (saved && !saved.confirmed)) {
+      // Only this wallet can register itself, so membership proves the saved transaction.
+      if (await registered(c, owner)) confirmSaved("setup:register");
+      else {
         if (!saved) {
           const funding = await fundingBudget(c, owner);
           if (funding.balance < funding.required) throw new FundingRequired();
         }
         progress("Registering your address and allocating 100 credits");
-        await transact(c, s, persist, progress, "setup:register", (ledger) =>
-          buildCall(c, s, ledger, "register"),
+        await transact(
+          c,
+          s,
+          persist,
+          progress,
+          "setup:register",
+          (ledger) => buildCall(c, s, ledger, "register"),
+          async () => !(await registered(c, owner)),
         );
         if (!(await registered(c, owner))) throw new ResultPending();
       }
@@ -289,8 +356,9 @@ export function payments(
       validateOperation(key.operation);
       await verifyDeployment(c);
       const label = `${intent.operation}:${action}`;
-      const check = async () => {
-        const found = await readEntry(c, key.from, key.operation);
+      // Reads after a commit use its ledger version, so a lagging node cannot hide it.
+      const check = async (version?: bigint) => {
+        const found = await readEntry(c, key.from, key.operation, version);
         if (creates) {
           if (!found) return false;
           if (
@@ -314,14 +382,10 @@ export function payments(
           throw new Error("This request was already resolved differently.");
         return found.state === expected;
       };
-      if ((await check()) && !s.journal[label]) return;
+      // The entry proves the effect, even when node history no longer has the transaction.
+      if (await check()) return confirmSaved(label);
       if (owner === recipient || !(await registered(c, recipient)))
         throw new Error("Choose a different, registered PayMVC account.");
-      progress(
-        action === "approve"
-          ? "Approving and paying the request"
-          : "Submitting your transaction",
-      );
       await transact(
         c,
         s,
@@ -348,8 +412,11 @@ export function payments(
               : [key.from, operationBytes(key.operation)],
           );
         },
+        async () => !(await check()),
       );
-      if (!(await check())) throw new ResultPending();
+      const committed = s.journal[label]?.committedVersion;
+      if (!(await check(committed ? BigInt(committed) : undefined)))
+        throw new ResultPending();
     },
   };
 }

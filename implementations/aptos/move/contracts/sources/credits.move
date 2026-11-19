@@ -24,8 +24,8 @@ module paymvc::credits {
             string::utf8(NAME),
             string::utf8(b"PAY"),
             0,
-            string::utf8(b""),
-            string::utf8(b""),
+            string::utf8(b"https://paymvc.com/apple-touch-icon.png"),
+            string::utf8(b"https://paymvc.com"),
         );
         move_to(publisher, Credits {
             metadata: object::object_from_constructor_ref(&constructor),

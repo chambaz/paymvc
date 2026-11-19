@@ -60,6 +60,7 @@ Frontend:
 - `src/chain/config.ts`: deployment record, RPC client, uncached ledger reads, APT formatting.
 - `src/chain/session.ts`: one Ed25519 key, deployment-bound storage, intent validation, exact amounts, 32-byte operation IDs, and entry IDs (`"<from>:<operation>"`).
 - `src/chain/transactions.ts`: signing, saved signed bytes, hash reconciliation, and expiry checks.
+- `src/chain/errors.ts`: names the PayMVC error in a failed simulation, for example "Choose a different, registered PayMVC account." for `E_NOT_REGISTERED`.
 - `src/chain/payments.ts`: view calls and entry-function construction for registration, payments, balances, and activity.
 - `src/app.tsx`: maps chain data to the shared view.
 
@@ -75,9 +76,9 @@ Credits are a native Aptos fungible asset with zero decimals. Each account holds
 
 ## 4. Funding
 
-Use Testnet for public verification. The [Aptos faucet](https://aptos.dev/network/faucet) may require authentication and may rate-limit requests. The public Aptos API limits anonymous browser traffic to 25,000 compute units per 5 minutes per IP and origin; one full scenario can exceed it.
+Use Testnet for public verification. The [Aptos faucet](https://aptos.dev/network/faucet) may require authentication and may rate-limit requests. The public Aptos API rate-limits anonymous browser traffic, and one full scenario can exceed the limit. See the provider's current limits.
 
-To use a keyed endpoint, set `VITE_RPC_URL` (for example an Alchemy or Geomi Aptos Testnet URL) in `.env.local`, which Git ignores. The app, `npm run test:live`, and `npm run test:live:browser` all use it in place of the deployment's public URL. A key in `VITE_RPC_URL` is shipped to the browser, so restrict it to your site's origins in the provider dashboard before you host the app.
+To use a keyed endpoint, set `VITE_RPC_URL` (for example an Alchemy Aptos Testnet URL, which holds its key) in `.env.local`, which Git ignores. Providers that expect the key in the `Authorization` header, such as Geomi, also need `VITE_APTOS_API_KEY`; the client sends it as a bearer token. The app, `npm run test:live`, and `npm run test:live:browser` all use it in place of the deployment's public URL. A key in `VITE_RPC_URL` or `VITE_APTOS_API_KEY` is shipped to the browser, so use a client key and restrict it to your site's origins in the provider dashboard before you host the app.
 
 The estimated starting budget is 0.1 APT. Fee estimates can change. Application transactions cap the gas reservation at 50,000 gas units (`MAX_GAS_AMOUNT`), because the SDK default reserves 2,000,000 units. Registration uses about 19,000.
 
@@ -87,9 +88,13 @@ The general policy is in [transaction recovery](../../../docs/recovery.md).
 
 [Transactions](src/chain/transactions.ts) saves the signed BCS transaction, hash, and preparation ledger version before submission. Storage failure stops submission. Recovery checks or resubmits those exact signed bytes. A timeout does not create a replacement payment.
 
-Confirmation requires a committed successful user transaction and the expected application state: `entry(from, operation)` shows the expected participants, amount, kind, and state. The contract rejects a second entry with the same `(from, operation)` (`E_OPERATION_USED`), so a retry cannot pay twice. Reorganizations do not apply: Aptos consensus gives finality when a transaction commits. Aptos consensus provides finality; the application does not use an EVM-style confirmation count. The transaction wait is bounded to 30 seconds. Failed reads retain the last displayed balance.
+Confirmation requires a committed successful user transaction and the expected application state: `entry(from, operation)` shows the expected participants, amount, kind, and state. The contract rejects a second entry with the same `(from, operation)` (`E_OPERATION_USED`), so a retry cannot pay twice. Reorganizations do not apply: Aptos consensus gives finality when a transaction commits, so the application does not use an EVM-style confirmation count. Reads after a commit use its ledger version, so a lagging node cannot hide the result. The transaction wait is bounded to 30 seconds. Failed reads retain the last displayed balance.
 
-Application transactions expire ten minutes after the ledger time read during preparation, so a wrong device clock does not change expiry. Proven expiry requires committed ledger time past the signed expiry, retained history covering preparation, and a second absent-hash lookup. Pruned or unavailable history leaves the outcome unknown. Definitive failure or proven expiry requires an explicit retry.
+Before signing, the client checks that the wallet holds the maximum gas fee and simulates the call. A failed simulation is shown by its PayMVC error name, and nothing is signed. A submission that the node refuses for lack of APT keeps the saved bytes and asks for funds; the same bytes can still succeed.
+
+Application transactions expire ten minutes after the ledger time read during preparation, so a wrong device clock does not change expiry. A sequence-number transaction has a faster proof too: if the account's committed transaction at the saved sequence number has another hash, the saved one can never commit, and the client allows a new attempt at once. Otherwise, proven expiry requires committed ledger time past the signed expiry, retained history covering preparation, a second absent-hash lookup, and current state without the operation's effect. Pruned or unavailable history leaves the outcome unknown. When the expected entry or registration is already on chain, it confirms the saved transaction directly. Definitive failure or proven expiry requires an explicit retry.
+
+The contract emits `Registered`, `Created`, and `Resolved` events (`#[event]`). The app reads state, not events; the events let explorers and indexers follow payments.
 
 Web Locks protect writes across tabs. Reset removes only the current local session after confirmation; it does not cancel pending transactions or erase chain state.
 
@@ -104,7 +109,7 @@ aptos move publish --package-dir contracts --named-addresses paymvc=<deployer> -
 1. It creates `.local/testnet-deployer.json` if needed and prints its address.
 2. If the package is not yet published, it checks that the deployer holds at least 0.1 APT. If not, it prints the amount needed and stops. Publishing used 64,059 gas units, about 0.064 APT.
 3. It runs `aptos move publish` with the key in a temporary private file under `.local/`, removed afterwards. `Move.toml` sets `upgrade_policy = "immutable"`.
-4. It finds the publish transaction in the deployer's history, verifies the chain ID, both module hashes, the asset metadata, and the immutable policy, and writes `public/deployment.json`.
+4. It finds the publish transaction among the deployer's first transactions, compiles the source for the deployer's address and checks that both published modules match it byte for byte, verifies the chain ID, the asset metadata, and the immutable policy, and writes `public/deployment.json`. The browser repeats the module hash and policy checks once per page load, and requires that the immutable package holds exactly `credits` and `paymvc`.
 
 A rerun after publication skips step 3 and verifies again. A second publication of the same immutable package fails on-chain, so a rerun cannot replace the code. A new deployment needs a new deployer address. The session key includes the package address and publish hash, so a new deployment gets new sessions. Keep `.local/` private.
 

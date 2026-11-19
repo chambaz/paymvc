@@ -25,11 +25,14 @@ import {
   UnknownOutcome,
   ExpiredTransaction,
   RevertedTransaction,
+  ReplacedTransaction,
+  GasFundsRequired,
 } from "../../src/chain/transactions";
 
 const client = vi.hoisted(() => ({
   getLedgerInfo: vi.fn(),
   getTransactionByHash: vi.fn(),
+  getAccountTransactions: vi.fn(),
   waitForTransaction: vi.fn(),
   transaction: { submit: { simple: vi.fn() } },
 }));
@@ -97,10 +100,13 @@ beforeEach(() => {
     oldest_ledger_version: "0",
   });
   client.getTransactionByHash.mockRejectedValue(missing());
+  // The saved sequence number is unused until a test says otherwise.
+  client.getAccountTransactions.mockResolvedValue([]);
   client.transaction.submit.simple.mockResolvedValue({});
   client.waitForTransaction.mockResolvedValue({
     type: "user_transaction",
     success: true,
+    version: "50",
   });
 });
 it("round-trips a signed session and rejects substituted transaction hashes", () => {
@@ -304,4 +310,86 @@ it.each([
   };
   const storage = { getItem: () => JSON.stringify(s) } as unknown as Storage;
   expect(() => loadSession(c, storage)).toThrow("incompatible");
+});
+
+it("fails early when another transaction used the saved sequence number", async () => {
+  const s = saved();
+  client.getAccountTransactions.mockResolvedValue([
+    { type: "user_transaction", hash: `0x${"9".repeat(64)}`, version: "12" },
+  ]);
+  await expect(
+    transact(
+      c,
+      s,
+      vi.fn(),
+      () => {},
+      "payment",
+      vi.fn(),
+      async () => true,
+    ),
+  ).rejects.toBeInstanceOf(ReplacedTransaction);
+  expect(s.journal.payment).toBeUndefined();
+  expect(client.transaction.submit.simple).not.toHaveBeenCalled();
+});
+
+it("confirms the saved transaction found at its sequence number", async () => {
+  const s = saved();
+  client.getAccountTransactions.mockResolvedValue([
+    {
+      type: "user_transaction",
+      hash: s.journal.payment!.hash,
+      version: "12",
+      success: true,
+    },
+  ]);
+  await transact(c, s, vi.fn(), () => {}, "payment", vi.fn());
+  expect(s.journal.payment!.confirmed).toBe(true);
+  expect(s.journal.payment!.committedVersion).toBe("12");
+  expect(client.transaction.submit.simple).not.toHaveBeenCalled();
+});
+
+it("keeps the saved bytes and asks for APT when gas cannot be paid", async () => {
+  const s = saved();
+  client.transaction.submit.simple.mockRejectedValue(
+    new AptosApiError({
+      apiType: AptosApiType.FULLNODE,
+      aptosRequest: { url: c.rpcUrl, method: "POST" },
+      aptosResponse: {
+        status: 400,
+        statusText: "Bad Request",
+        data: {
+          message: "Invalid transaction",
+          error_code: "vm_error",
+          vm_error_code: 5,
+          vm_status: "INSUFFICIENT_BALANCE_FOR_TRANSACTION_FEE",
+        },
+        url: c.rpcUrl,
+        headers: {},
+      },
+    }),
+  );
+  await expect(
+    transact(c, s, vi.fn(), () => {}, "payment", vi.fn()),
+  ).rejects.toBeInstanceOf(GasFundsRequired);
+  expect(s.journal.payment).toBeDefined();
+});
+
+it("keeps an expired transaction whose effect is on chain", async () => {
+  const s = saved();
+  client.getLedgerInfo.mockResolvedValue({
+    chain_id: 2,
+    ledger_version: "77",
+    ledger_timestamp: "2000000000",
+    oldest_ledger_version: "0",
+  });
+  await transact(
+    c,
+    s,
+    vi.fn(),
+    () => {},
+    "payment",
+    vi.fn(),
+    async () => false,
+  );
+  expect(s.journal.payment!.confirmed).toBe(true);
 });

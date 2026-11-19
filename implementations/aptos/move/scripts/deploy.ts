@@ -9,7 +9,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
-import { Account, Ed25519PrivateKey } from "@aptos-labs/ts-sdk";
+import { Account, Ed25519PrivateKey, Hex } from "@aptos-labs/ts-sdk";
 import { normalizeAddress, parseDeployment, server } from "../src/chain/config";
 import { moduleHash, verifyDeployment, view } from "../src/chain/payments";
 
@@ -98,9 +98,10 @@ if (!published) {
 }
 
 // The publish transaction is the deployer's successful call to publish_package_txn.
+// It is among the deployer's first transactions; later ones fund live test users.
 const transactions = await client.getAccountTransactions({
   accountAddress: owner,
-  options: { limit: 100 },
+  options: { offset: 0, limit: 100 },
 });
 const publication = transactions.find(
   (t) =>
@@ -115,6 +116,29 @@ const hash = async (moduleName: string) =>
     (await client.getAccountModule({ accountAddress: owner, moduleName }))
       .bytecode,
   );
+// Tie the published bytecode to this source: compile it for the deployer's address and
+// compare each module with the chain.
+execFileSync(
+  "aptos",
+  [
+    "move",
+    "compile",
+    "--package-dir",
+    "contracts",
+    "--named-addresses",
+    `paymvc=${owner}`,
+  ],
+  { stdio: "inherit" },
+);
+for (const name of ["credits", "paymvc"]) {
+  const built = await moduleHash(
+    Hex.fromHexInput(
+      readFileSync(`contracts/build/paymvc/bytecode_modules/${name}.mv`),
+    ).toString(),
+  );
+  if (built !== (await hash(name)))
+    throw new Error(`The published ${name} module does not match this source.`);
+}
 const base = {
   network,
   rpcUrl,
