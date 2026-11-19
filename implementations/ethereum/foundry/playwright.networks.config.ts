@@ -7,6 +7,8 @@ export default defineConfig({
   expect: { timeout: 30000 },
   retries: 0,
   use: {
+    // Dialogs open without animation, so that axe checks the final colors.
+    reducedMotion: "reduce",
     baseURL: "http://127.0.0.1:5190",
     trace: "off",
     screenshot: "off",

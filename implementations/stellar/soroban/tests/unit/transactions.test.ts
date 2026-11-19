@@ -63,6 +63,7 @@ const run = () =>
     c,
     s,
     () => {},
+    () => {},
     "test",
     async () => {
       throw new Error("Must reuse saved bytes");
@@ -103,6 +104,7 @@ it("stops before broadcast when signed evidence cannot be saved", async () => {
       () => {
         throw new Error("storage unavailable");
       },
+      () => {},
       "test",
       async () => [],
     ),

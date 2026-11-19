@@ -135,6 +135,7 @@ test("canonical independent-user scenario, external transfer, reload, and reset"
               JSON.stringify(s),
               { mode: 0o600 },
             ),
+          () => {},
           "external:test",
           async () => [
             new Contract(c.token).call(

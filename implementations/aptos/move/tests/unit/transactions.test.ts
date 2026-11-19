@@ -122,7 +122,7 @@ it("rebroadcasts saved bytes only after persistence", async () => {
   const s = saved(),
     build = vi.fn(),
     persist = vi.fn();
-  await transact(c, s, "payment", build, persist);
+  await transact(c, s, persist, () => {}, "payment", build);
   expect(build).not.toHaveBeenCalled();
   expect(client.transaction.submit.simple).toHaveBeenCalledOnce();
   expect(persist.mock.invocationCallOrder[0]).toBeLessThan(
@@ -133,9 +133,16 @@ it("rebroadcasts saved bytes only after persistence", async () => {
 it("stops before submission when storage fails", async () => {
   const s = saved();
   await expect(
-    transact(c, s, "payment", vi.fn(), () => {
-      throw new Error("quota");
-    }),
+    transact(
+      c,
+      s,
+      () => {
+        throw new Error("quota");
+      },
+      () => {},
+      "payment",
+      vi.fn(),
+    ),
   ).rejects.toThrow("quota");
   expect(client.transaction.submit.simple).not.toHaveBeenCalled();
 });
@@ -144,7 +151,7 @@ it("retains uncertain submission evidence", async () => {
     original = { ...s.journal.payment };
   client.transaction.submit.simple.mockRejectedValue(new Error("offline"));
   await expect(
-    transact(c, s, "payment", vi.fn(), vi.fn()),
+    transact(c, s, vi.fn(), () => {}, "payment", vi.fn()),
   ).rejects.toBeInstanceOf(UnknownOutcome);
   expect(s.journal.payment).toEqual(original);
 });
@@ -152,7 +159,7 @@ it("does not submit after an unavailable lookup", async () => {
   const s = saved();
   client.getTransactionByHash.mockRejectedValue(new Error("offline"));
   await expect(
-    transact(c, s, "payment", vi.fn(), vi.fn()),
+    transact(c, s, vi.fn(), () => {}, "payment", vi.fn()),
   ).rejects.toBeInstanceOf(UnknownOutcome);
   expect(client.transaction.submit.simple).not.toHaveBeenCalled();
 });
@@ -161,7 +168,7 @@ it("keeps the outcome unknown when the ledger lookup fails", async () => {
   const s = saved();
   client.getLedgerInfo.mockRejectedValue(new Error("offline"));
   await expect(
-    transact(c, s, "payment", vi.fn(), vi.fn()),
+    transact(c, s, vi.fn(), () => {}, "payment", vi.fn()),
   ).rejects.toBeInstanceOf(UnknownOutcome);
   expect(s.journal.payment?.confirmed).toBe(false);
   expect(client.transaction.submit.simple).not.toHaveBeenCalled();
@@ -174,7 +181,7 @@ it("requires retained history to prove expiry", async () => {
     oldest_ledger_version: "11",
   });
   await expect(
-    transact(c, s, "payment", vi.fn(), vi.fn()),
+    transact(c, s, vi.fn(), () => {}, "payment", vi.fn()),
   ).rejects.toBeInstanceOf(UnknownOutcome);
   expect(s.journal.payment).toBeDefined();
 });
@@ -186,7 +193,7 @@ it("checks absence again after observed ledger expiry", async () => {
     oldest_ledger_version: "0",
   });
   await expect(
-    transact(c, s, "payment", vi.fn(), vi.fn()),
+    transact(c, s, vi.fn(), () => {}, "payment", vi.fn()),
   ).rejects.toBeInstanceOf(ExpiredTransaction);
   expect(client.getTransactionByHash).toHaveBeenCalledTimes(2);
   expect(s.journal.payment).toBeUndefined();
@@ -198,7 +205,7 @@ it("reconciles a committed failure without rebroadcast", async () => {
     success: false,
   });
   await expect(
-    transact(c, s, "payment", vi.fn(), vi.fn()),
+    transact(c, s, vi.fn(), () => {}, "payment", vi.fn()),
   ).rejects.toBeInstanceOf(RevertedTransaction);
   expect(s.journal.payment).toBeUndefined();
   expect(client.transaction.submit.simple).not.toHaveBeenCalled();
@@ -214,7 +221,7 @@ it("accepts a transaction found at the expiry boundary", async () => {
   client.getTransactionByHash
     .mockRejectedValueOnce(missing())
     .mockResolvedValueOnce({ type: "user_transaction", success: true });
-  await transact(c, s, "payment", vi.fn(), vi.fn());
+  await transact(c, s, vi.fn(), () => {}, "payment", vi.fn());
   expect(s.journal.payment?.confirmed).toBe(true);
   expect(client.transaction.submit.simple).not.toHaveBeenCalled();
 });
@@ -230,7 +237,7 @@ it("retains evidence when the final expiry lookup is unavailable", async () => {
     .mockRejectedValueOnce(missing())
     .mockRejectedValueOnce(new Error("offline"));
   await expect(
-    transact(c, s, "payment", vi.fn(), vi.fn()),
+    transact(c, s, vi.fn(), () => {}, "payment", vi.fn()),
   ).rejects.toBeInstanceOf(UnknownOutcome);
   expect(s.journal.payment?.confirmed).toBe(false);
   expect(client.transaction.submit.simple).not.toHaveBeenCalled();
@@ -243,7 +250,7 @@ it("waits for an already pending transaction without another submission", async 
   });
   client.waitForTransaction.mockRejectedValue(new Error("timeout"));
   await expect(
-    transact(c, s, "payment", vi.fn(), vi.fn()),
+    transact(c, s, vi.fn(), () => {}, "payment", vi.fn()),
   ).rejects.toBeInstanceOf(UnknownOutcome);
   expect(s.journal.payment?.confirmed).toBe(false);
   expect(client.transaction.submit.simple).not.toHaveBeenCalled();
@@ -257,9 +264,9 @@ it("builds new transactions from the same ledger read that records preparation",
     ledger_version: "12",
     ledger_timestamp: "900000000",
   });
-  await expect(transact(c, s, "payment", build, vi.fn())).rejects.toThrow(
-    "stop",
-  );
+  await expect(
+    transact(c, s, vi.fn(), () => {}, "payment", build),
+  ).rejects.toThrow("stop");
   expect(build).toHaveBeenCalledWith(
     expect.objectContaining({ ledger_version: "12" }),
   );

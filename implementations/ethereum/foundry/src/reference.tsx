@@ -38,6 +38,7 @@ function Reference() {
   const props: ViewProps = {
     network: "UI fixture",
     implementation: "ethereum",
+    nativeSymbol: "ETH",
     ready: !["entry", "funding", "setup"].includes(state),
     started: state !== "entry",
     address: address(1),

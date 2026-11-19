@@ -131,6 +131,7 @@ export function App({ config }: { config: Deployment }) {
         void demo.refresh();
       }}
       onMore={demo.more}
+      loadingMore={demo.loadingMore}
     />
   );
 }

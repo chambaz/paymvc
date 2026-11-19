@@ -31,16 +31,20 @@ export class ExpiredTransaction extends Error {
     super("The saved transaction expired without execution. Retry explicitly.");
   }
 }
+export type Progress = (message: string) => void;
+
 export async function transact(
   c: Deployment,
   s: Session,
+  persist: () => void,
+  progress: Progress,
   label: string,
   build: (ledger: LedgerInfo) => Promise<SimpleTransaction>,
-  persist: () => void,
 ) {
   const client = server(c);
   let record = s.journal[label];
   if (!record) {
+    progress("Preparing transaction");
     const ledger = await client.getLedgerInfo();
     if (ledger.chain_id !== c.chainId)
       throw new Error("Unexpected Aptos chain.");
@@ -61,6 +65,7 @@ export async function transact(
   }
   if (record.confirmed) return record.hash;
   persist();
+  progress("Waiting for confirmation");
   const saved = savedTransaction(record.raw);
   let result: TransactionResponse | undefined;
   try {

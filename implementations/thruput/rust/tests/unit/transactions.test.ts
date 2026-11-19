@@ -45,11 +45,11 @@ const run = (save = persist) =>
   transact(
     config,
     session,
-    client as unknown as Client,
-    "registration",
-    [call],
     save,
     () => {},
+    "registration",
+    client as unknown as Client,
+    [call],
     absent,
   );
 const receipt = (result: "return" | "abort") => ({

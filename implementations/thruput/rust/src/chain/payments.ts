@@ -247,11 +247,11 @@ export function payments(
       await transact(
         c,
         s,
-        client,
-        "registration",
-        [app.register.invocation(address, CALL_GAS)],
         persist,
         progress,
+        "registration",
+        client,
+        [app.register.invocation(address, CALL_GAS)],
         async (height) => !(await isRegistered(height)),
       );
       if (!(await isRegistered(confirmedHeight(s)))) throw new ResultPending();
@@ -310,11 +310,11 @@ export function payments(
       await transact(
         c,
         s,
-        client,
-        `${intent.operation}:${intent.action}`,
-        calls,
         persist,
         progress,
+        `${intent.operation}:${intent.action}`,
+        client,
+        calls,
         async (height) => {
           const value = await entry(height);
           return creating ? value === null : value?.state === 0n;

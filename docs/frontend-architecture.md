@@ -9,10 +9,15 @@ src/
   main.tsx                    loads the deployment record and renders App
   app.tsx                     connects the chain module to the shared view (chain-specific)
   hooks/use-demo.ts           session, queries, writes, and recovery (shared)
-  components/
-    payments-view.tsx         the whole interface; no chain code (shared)
-    theme-toggle.tsx          (shared)
-    ui/                       shadcn/ui components (shared)
+  components/                 the whole interface; no chain code (shared)
+    payments-view.tsx         the page: header, setup, and dashboard
+    payment-dialog.tsx        the Send and Request dialog
+    reset-dialog.tsx          Reset Demo and its confirmation
+    feedback.tsx              progress, notices, errors, and recovery actions
+    entry-summary.tsx         one activity row
+    address.tsx               short addresses and the copy button
+    theme-toggle.tsx
+    ui/                       shadcn/ui components
   chain/                      all chain code: keys, signing, reads, writes (chain-specific)
     config.ts
     session.ts
@@ -36,7 +41,7 @@ public/
 
 1. `main.tsx` fetches the public deployment record, validates it, and renders `App`.
 2. `app.tsx` calls `useDemo(config)`, maps chain data to view rows, validates form input, and renders `PaymentsView`.
-3. `use-demo.ts` owns the session, the React Query reads, the single-writer tab lock, and the write queue. It calls the chain module for every chain operation.
+3. `use-demo.ts` owns the session, the React Query reads, and the single-writer tab lock. It runs one write at a time and rejects a second one. It calls the chain module for every chain operation.
 4. `chain/payments.ts` builds each operation and checks its on-chain effect. `chain/transactions.ts` signs, saves, broadcasts, and confirms.
 5. `PaymentsView` renders props and reports user actions. It never calls the chain.
 
@@ -48,9 +53,19 @@ Each implementation exports the same names. A chain can add helpers, but it must
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
 | `config.ts`       | `Deployment`, `parseDeployment`, `deploymentKey`                                                                                                                       | Validate the deployment record. Create RPC clients. Build the session storage key from the network and deployment identity. |
 | `session.ts`      | `Session`, `Intent`, `newSession`, `loadSession`, `saveSession`, `accountFor`, `parseAmount`, `operationId`                                                            | Create, validate, and store the disposable wallet and its transaction journal. Validate amounts. Create operation IDs.      |
-| `transactions.ts` | `transact`, `UnknownOutcome`, `BroadcastUnavailable`, `ResultPending`, `RevertedTransaction`, and `ExpiredTransaction` where the chain has expiry                      | Sign, save before broadcast, broadcast, confirm, and reconcile. See [transaction recovery](recovery.md).                    |
+| `transactions.ts` | `transact`, `Progress`, `UnknownOutcome`, `BroadcastUnavailable`, `ResultPending`, `RevertedTransaction`, and `ExpiredTransaction` where the chain has expiry          | Sign, save before broadcast, broadcast, confirm, and reconcile. See [transaction recovery](recovery.md).                    |
 | `payments.ts`     | `payments(config, session, persist, progress)` returning `{ setup, execute }`, `verifyDeployment`, `fundingBudget`, `FundingRequired`, `readContacts`, `readDashboard` | Register, send, request, approve, and decline, and verify each effect. Read contacts, balance, and activity.                |
 | `recovery.ts`     | `recheckOnce`                                                                                                                                                          | One automatic recheck, then explicit user action. Shared.                                                                   |
+
+### `transact`
+
+Every chain uses the same first five arguments, then its own:
+
+```ts
+transact(config, session, persist, progress, label, ...chainArguments);
+```
+
+`label` names the journal record. The label of every record for a payment operation starts with its operation ID, so the shared hook can find and remove them. `transact` reports two progress messages: `Preparing transaction` before it signs, and `Waiting for confirmation` after it saves the signed transaction.
 
 ## Session
 
@@ -68,9 +83,7 @@ The key never leaves the browser. It never appears in logs, URLs, API calls, err
 These files must be identical in every implementation:
 
 - `src/hooks/use-demo.ts`
-- `src/components/payments-view.tsx`
-- `src/components/theme-toggle.tsx`
-- `src/components/ui/*`
+- every file in `src/components/`
 - `src/chain/recovery.ts`
 - `src/lib/utils.ts`
 - `src/styles.css`

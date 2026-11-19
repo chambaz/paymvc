@@ -291,7 +291,7 @@ describe("payments", () => {
     ).execute(intent);
   /** The batch passed to `transact`, as entrypoint names. */
   const batch = () =>
-    (transact.mock.calls[0]![4] as { entrypoint: Uint8Array }[]).map(
+    (transact.mock.calls[0]![6] as { entrypoint: Uint8Array }[]).map(
       (call) =>
         Object.entries({
           adjustAllowance: ERC20.v0_1.adjustAllowance,
@@ -327,7 +327,7 @@ describe("payments", () => {
       operation,
     });
     expect(batch()).toEqual(["adjustAllowance", "send"]);
-    expect(transact.mock.calls[0]![3]).toBe(`${operation}:send`);
+    expect(transact.mock.calls[0]![4]).toBe(`${operation}:send`);
     const { args } = view.mock.calls[0]![0] as never as {
       args: { from: Uint8Array; operation: Uint8Array };
     };

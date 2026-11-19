@@ -81,7 +81,7 @@ The interface shows each of these states. Each has a visual baseline.
 
 ## Addresses
 
-- Short form: four characters, three dots, four characters: `1234...5678`.
+- Short form: four characters, three dots, four characters: `1234...5678`. A `0x` prefix is kept and not counted: `0x1234...5678`.
 - Controls keep the full address in their value and accessible label. The short form is display text only; never use it to identify an account.
 - The full address can always be inspected and copied.
 

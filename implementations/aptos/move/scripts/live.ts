@@ -87,6 +87,8 @@ async function scenario() {
         await transact(
           c,
           deployer,
+          () => save(`${dir}/funder.json`, deployer),
+          () => {},
           `fund:${user}`,
           () =>
             server(c).transaction.build.simple({
@@ -100,7 +102,6 @@ async function scenario() {
               },
               options: { maxGasAmount: MAX_GAS_AMOUNT },
             }),
-          () => save(`${dir}/funder.json`, deployer),
         );
       },
       [deployer, `fund:${user}`],
@@ -163,6 +164,8 @@ async function scenario() {
       await transact(
         c,
         users.b,
+        () => persist("b"),
+        () => {},
         "external:3",
         () =>
           server(c).transaction.build.simple({
@@ -174,7 +177,6 @@ async function scenario() {
             },
             options: { maxGasAmount: MAX_GAS_AMOUNT },
           }),
-        () => persist("b"),
       );
     },
     [users.b, "external:3"],

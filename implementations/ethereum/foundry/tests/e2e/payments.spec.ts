@@ -337,6 +337,18 @@ test("unreadable browser storage stops before a wallet is created", async ({
   ).toHaveCount(0);
 });
 
+test("closing the reset confirmation returns focus to Reset Demo", async ({
+  page,
+}) => {
+  await create(page);
+  const reset = page.getByRole("button", { name: "Reset Demo", exact: true });
+  await reset.focus();
+  await page.keyboard.press("Enter");
+  await page.getByRole("button", { name: "Keep demo", exact: true }).click();
+  await expect(reset).toBeFocused();
+  await expect(page.getByTestId("funding-address")).toBeVisible();
+});
+
 test("delayed payment result reconciles without another broadcast", async ({
   page,
 }) => {

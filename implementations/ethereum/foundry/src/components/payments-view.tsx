@@ -1,28 +1,21 @@
 import { useRef, useState } from "react";
-import { ThemeToggle } from "./theme-toggle";
 import {
-  ArrowUpRightIcon,
   ArrowDownLeftIcon,
-  RefreshCwIcon,
-  CopyIcon,
-  CheckIcon,
+  ArrowUpRightIcon,
   CircleUserRoundIcon,
+  RefreshCwIcon,
 } from "lucide-react";
+import { ThemeToggle } from "./theme-toggle";
 import { Button } from "./ui/button";
-import { Badge } from "./ui/badge";
-import { Alert, AlertDescription, AlertTitle } from "./ui/alert";
-import { Input } from "./ui/input";
-import { Field, FieldGroup, FieldLabel } from "./ui/field";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-  DialogDescription,
-  DialogFooter,
-} from "./ui/dialog";
+import { FieldGroup } from "./ui/field";
 import { Separator } from "./ui/separator";
-import { ToggleGroup, ToggleGroupItem } from "./ui/toggle-group";
+import { CopyAddress, shortAddress } from "./address";
+import { EntrySummary, type Row } from "./entry-summary";
+import { Feedback } from "./feedback";
+import { PaymentDialog, type PaymentMode } from "./payment-dialog";
+import { ResetDialog } from "./reset-dialog";
+
+export { shortAddress, type Row };
 
 /** The project landing page, linked from the logo. */
 const landingUrl = import.meta.env.VITE_LANDING_URL || "http://127.0.0.1:5170";
@@ -97,18 +90,11 @@ export type ImplementationId = (typeof implementations)[number]["id"];
 export interface Contact {
   address: string;
 }
-export interface Row {
-  id: string;
-  address: string;
-  amount: string;
-  state: string;
-  incoming: boolean;
-  request: boolean;
-}
 export interface ViewProps {
   network: string;
   implementation: ImplementationId;
-  nativeSymbol?: string;
+  /** The native fee token, for example "ETH". */
+  nativeSymbol: string;
   ready: boolean;
   started: boolean;
   resetAvailable?: boolean;
@@ -129,13 +115,14 @@ export interface ViewProps {
   pendingRequestId?: string;
   unknown: boolean;
   hasMore: boolean;
+  loadingMore?: boolean;
   faucetUrl: string;
   fundingAmount?: string;
   fundingReceived?: boolean;
   setupStarted?: boolean;
   onStart: () => Promise<unknown>;
   onSubmit: (
-    mode: "send" | "request",
+    mode: PaymentMode,
     recipient: string,
     amount: string,
   ) => Promise<boolean>;
@@ -146,205 +133,15 @@ export interface ViewProps {
   onRefresh: () => void;
   onMore: () => void;
 }
-export const shortAddress = (value: string) =>
-  value ? `${value.slice(0, 4)}...${value.slice(-4)}` : "";
-
-function Feedback(props: ViewProps) {
-  // After a reload, an unresolved operation has no error text yet.
-  const problem =
-    props.error ||
-    (props.pending && !props.busy
-      ? props.unknown
-        ? "The network has not confirmed your last operation. Recheck it before you start another. It will not be sent twice."
-        : "Your last operation is unresolved. Recheck it, or dismiss it to continue."
-      : "");
-  if (!props.message && !props.stale && !props.readOnly && !problem)
-    return null;
-  return (
-    <div className="flex flex-col gap-3" aria-label="Demo status">
-      {props.message ? (
-        <p role="status" className="text-base text-muted-foreground sm:text-sm">
-          {props.busy ? (
-            <RefreshCwIcon
-              aria-hidden="true"
-              className="mr-2 inline size-4 motion-safe:animate-spin"
-            />
-          ) : null}
-          {props.message}
-        </p>
-      ) : null}
-      {props.stale ? (
-        <Alert>
-          <AlertTitle>Balance may be out of date</AlertTitle>
-          <AlertDescription>
-            The latest read failed. Your previous balance is retained. Refresh
-            to check again.
-          </AlertDescription>
-        </Alert>
-      ) : null}
-      {props.readOnly ? (
-        <Alert>
-          <AlertTitle>Read-only tab</AlertTitle>
-          <AlertDescription>
-            Another tab owns this demo, or browser locking is unavailable. Close
-            the other tab and reload to make payments here.
-          </AlertDescription>
-        </Alert>
-      ) : null}
-      {problem ? (
-        <Alert variant="destructive">
-          <AlertTitle>
-            {props.unknown ? "Outcome unknown" : "A step needs attention"}
-          </AlertTitle>
-          <AlertDescription>{problem}</AlertDescription>
-        </Alert>
-      ) : null}
-      {props.pending && !props.busy ? (
-        <div className="flex flex-wrap gap-3">
-          <Button
-            variant="secondary"
-            disabled={props.readOnly}
-            onClick={props.onRetry}
-          >
-            Recheck original operation
-          </Button>
-          {!props.unknown ? (
-            <Button
-              variant="ghost"
-              disabled={props.readOnly}
-              onClick={props.onDismiss}
-            >
-              Dismiss failed operation
-            </Button>
-          ) : null}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function CopyAddress({
-  address,
-  label = "Copy address",
-  format = "short",
-}: {
-  address: string;
-  label?: string;
-  format?: "short" | "full" | "icon";
-}) {
-  const full = format === "full";
-  const [copied, setCopied] = useState(false);
-  const [failed, setFailed] = useState(false);
-  return (
-    <span className="inline-flex min-w-0 items-center">
-      <Button
-        variant={full ? "outline" : "ghost"}
-        size={full ? "sm" : "icon"}
-        className={
-          full
-            ? "h-auto w-full items-start justify-start whitespace-normal text-left font-mono"
-            : undefined
-        }
-        title={copied ? "Copied" : `Copy ${address}`}
-        aria-label={`${label}: ${address}${copied ? " (Copied)" : ""}`}
-        onClick={() => {
-          void navigator.clipboard.writeText(address).then(
-            () => {
-              setCopied(true);
-              setFailed(false);
-            },
-            () => setFailed(true),
-          );
-        }}
-      >
-        {copied ? <CheckIcon /> : <CopyIcon />}
-        {full ? (
-          <span data-testid="funding-address" className="min-w-0 break-all">
-            {address}
-          </span>
-        ) : null}
-      </Button>
-      {format === "short" ? (
-        <span className="font-mono" title={address}>
-          {shortAddress(address)}
-        </span>
-      ) : null}
-      {failed ? (
-        <span role="status" className="break-all">
-          Copy manually: {address}
-        </span>
-      ) : null}
-    </span>
-  );
-}
-
-function EntrySummary({
-  row,
-  disabled,
-  onSelect,
-}: {
-  row: Row;
-  disabled?: boolean;
-  onSelect: () => void;
-}) {
-  const address = (
-    <button
-      type="button"
-      className="rounded-sm underline-offset-4 hover:underline focus-visible:outline-2 focus-visible:outline-ring disabled:pointer-events-none disabled:opacity-50"
-      title={row.address}
-      aria-label={`Send to ${shortAddress(row.address)} (${row.address})`}
-      disabled={disabled}
-      onClick={onSelect}
-    >
-      {shortAddress(row.address)}
-    </button>
-  );
-  const amount = (
-    <span className="font-medium tabular-nums">{row.amount} credits</span>
-  );
-  return (
-    <div className="flex min-w-0 items-start justify-between gap-3">
-      <p className="min-w-0 text-base sm:text-sm">
-        {row.request ? (
-          row.incoming ? (
-            <>
-              You requested {amount} from {address}
-            </>
-          ) : (
-            <>
-              {address} requested {amount} from you
-            </>
-          )
-        ) : row.incoming ? (
-          <>
-            You received {amount} from {address}
-          </>
-        ) : (
-          <>
-            You sent {address} {amount}
-          </>
-        )}
-      </p>
-      <Badge
-        variant={
-          row.request && row.state === "Pending" ? "secondary" : "outline"
-        }
-      >
-        {row.request ? row.state : "Completed"}
-      </Badge>
-    </div>
-  );
-}
 
 export function PaymentsView(props: ViewProps) {
   const current = implementations.find(
     (item) => item.id === props.implementation,
   )!;
   const dialogTrigger = useRef<HTMLElement | null>(null);
-  const [mode, setMode] = useState<"send" | "request" | null>(null);
+  const [mode, setMode] = useState<PaymentMode | null>(null);
   const [recipient, setRecipient] = useState("");
   const [amount, setAmount] = useState("");
-  const [reset, setReset] = useState(false);
   const [selectedRequest, setSelectedRequest] = useState<string>();
   const activeRequest = props.pendingRequestId ?? selectedRequest;
   const disabled = props.busy || props.readOnly || props.pending;
@@ -352,7 +149,17 @@ export function PaymentsView(props: ViewProps) {
     (row) =>
       row.request && (row.state === "Pending" || row.id === activeRequest),
   );
-  function open(next: "send" | "request", address = "") {
+  const recovery = {
+    busy: props.busy,
+    error: props.error,
+    pending: props.pending,
+    unknown: props.unknown,
+    onRetry: props.onRetry,
+    onDismiss: props.onDismiss,
+  };
+  // The dialog and the request rows show their own progress and errors.
+  const elsewhere = Boolean(activeRequest || mode);
+  function open(next: PaymentMode, address = "") {
     dialogTrigger.current =
       document.activeElement instanceof HTMLElement
         ? document.activeElement
@@ -440,7 +247,7 @@ export function PaymentsView(props: ViewProps) {
                       {props.fundingReceived
                         ? "Funding received. Click Start demo to set up your payment world."
                         : props.fundingAmount
-                          ? `Request at least ${props.fundingAmount} testnet ${props.nativeSymbol ?? "ETH"} for registration and transaction fees.`
+                          ? `Request at least ${props.fundingAmount} testnet ${props.nativeSymbol} for registration and transaction fees.`
                           : "Checking the current funding budget. If the network is unavailable, try Start demo again."}
                     </p>
                   ) : null}
@@ -469,16 +276,27 @@ export function PaymentsView(props: ViewProps) {
                   </a>
                 </div>
               )}
-              <Feedback {...props} />
+              <Feedback
+                {...recovery}
+                message={props.message}
+                stale={props.stale}
+                readOnly={props.readOnly}
+              />
             </section>
           </section>
         ) : (
           <>
             <Feedback
-              {...props}
-              message=""
-              error={activeRequest || mode ? "" : props.error}
-              pending={activeRequest || mode ? false : props.pending}
+              {...recovery}
+              message={
+                !elsewhere && props.busy
+                  ? props.message || "Checking your saved operation…"
+                  : ""
+              }
+              error={elsewhere ? "" : props.error}
+              pending={elsewhere ? false : props.pending}
+              stale={props.stale}
+              readOnly={props.readOnly}
             />
             <section className="flex flex-wrap items-center gap-x-4 gap-y-2">
               <h1 className="text-3xl tracking-tight">
@@ -617,15 +435,19 @@ export function PaymentsView(props: ViewProps) {
                       </li>
                     ))}
                   </ul>
-                ) : null}
-                {!props.rows.length ? (
+                ) : (
                   <p className="text-base text-muted-foreground sm:text-sm">
                     No payments or requests yet.
                   </p>
-                ) : null}
+                )}
                 {props.hasMore ? (
-                  <Button variant="link" onClick={props.onMore}>
-                    Load more
+                  <Button
+                    variant="link"
+                    disabled={props.loadingMore}
+                    aria-busy={props.loadingMore}
+                    onClick={props.onMore}
+                  >
+                    {props.loadingMore ? "Loading…" : "Load more"}
                   </Button>
                 ) : null}
               </section>
@@ -651,7 +473,6 @@ export function PaymentsView(props: ViewProps) {
                       <li
                         key={row.id}
                         className="flex flex-col gap-3 py-4 first:pt-0"
-                        aria-label={`Request ${row.id} ${row.incoming ? "to" : "from"} ${row.address}`}
                       >
                         <EntrySummary
                           row={row}
@@ -660,12 +481,11 @@ export function PaymentsView(props: ViewProps) {
                         />
                         {row.id === activeRequest ? (
                           <Feedback
-                            {...props}
-                            stale={false}
-                            readOnly={false}
+                            {...recovery}
                             message={
                               props.busy
-                                ? "Updating this request. Please wait…"
+                                ? props.message ||
+                                  "Updating this request. Please wait…"
                                 : row.state === "Paid"
                                   ? "Payment complete."
                                   : row.state === "Declined"
@@ -708,146 +528,34 @@ export function PaymentsView(props: ViewProps) {
             </div>
           </>
         )}
-        <footer className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t pt-3 text-base text-muted-foreground sm:text-sm">
-          {props.started || props.resetAvailable ? (
-            <Button
-              variant="link"
-              size="sm"
-              className="px-0"
+        {props.started || props.resetAvailable ? (
+          <footer className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t pt-3 text-base text-muted-foreground sm:text-sm">
+            <ResetDialog
               disabled={props.busy || props.readOnly}
-              onClick={() => setReset(true)}
-            >
-              Reset Demo
-            </Button>
-          ) : null}
-        </footer>
+              onReset={props.onReset}
+            />
+          </footer>
+        ) : null}
       </main>
-      <Dialog
-        open={mode !== null}
-        onOpenChange={(open) => {
-          if (!open && !props.busy) setMode(null);
+      <PaymentDialog
+        mode={mode}
+        recipient={recipient}
+        amount={amount}
+        busy={props.busy}
+        disabled={disabled}
+        message={props.message}
+        error={props.error}
+        onMode={setMode}
+        onRecipient={setRecipient}
+        onAmount={setAmount}
+        onSubmit={() => {
+          if (mode)
+            void props.onSubmit(mode, recipient, amount).then((ok) => {
+              if (ok) setMode(null);
+            });
         }}
-      >
-        <DialogContent
-          onCloseAutoFocus={(event) => {
-            event.preventDefault();
-            dialogTrigger.current?.focus();
-          }}
-        >
-          <DialogHeader>
-            <DialogTitle>
-              {mode === "send" ? "Send a little" : "Make a request"}
-            </DialogTitle>
-            <DialogDescription>
-              {mode === "send"
-                ? "Send demo credits to someone in your payment world."
-                : "Ask for demo credits. Nothing moves until the payer approves."}
-            </DialogDescription>
-          </DialogHeader>
-          <ToggleGroup
-            type="single"
-            variant="outline"
-            value={mode ?? "send"}
-            aria-label="Payment action"
-            disabled={disabled}
-            onValueChange={(value) => {
-              if (value === "send" || value === "request") setMode(value);
-            }}
-          >
-            <ToggleGroupItem value="send">Send</ToggleGroupItem>
-            <ToggleGroupItem value="request">Request</ToggleGroupItem>
-          </ToggleGroup>
-          <form
-            onSubmit={(event) => {
-              event.preventDefault();
-              if (mode)
-                void props.onSubmit(mode, recipient, amount).then((ok) => {
-                  if (ok) setMode(null);
-                });
-            }}
-          >
-            <FieldGroup>
-              <Field>
-                <FieldLabel htmlFor="recipient">Recipient address</FieldLabel>
-                <Input
-                  id="recipient"
-                  name="recipient"
-                  value={recipient}
-                  onChange={(event) => setRecipient(event.target.value)}
-                  placeholder="Paste a registered wallet address"
-                  autoComplete="off"
-                  autoCapitalize="none"
-                  spellCheck={false}
-                  disabled={disabled}
-                  required
-                />
-              </Field>
-              <Field>
-                <FieldLabel htmlFor="amount">Amount</FieldLabel>
-                <Input
-                  id="amount"
-                  name="amount"
-                  inputMode="numeric"
-                  value={amount}
-                  onChange={(event) => setAmount(event.target.value)}
-                  placeholder="0"
-                  disabled={disabled}
-                  required
-                />
-              </Field>
-              {props.error ? (
-                <p
-                  role="alert"
-                  className="text-base text-destructive sm:text-sm"
-                >
-                  {props.error}
-                </p>
-              ) : null}
-              {props.busy ? (
-                <p
-                  role="status"
-                  className="text-base text-muted-foreground sm:text-sm"
-                >
-                  <RefreshCwIcon
-                    aria-hidden="true"
-                    className="mr-2 inline size-4 motion-safe:animate-spin"
-                  />
-                  {mode === "send"
-                    ? "Sending your credits. Please wait…"
-                    : "Creating your request. Please wait…"}
-                </p>
-              ) : null}
-              <Button type="submit" disabled={disabled}>
-                {mode === "send" ? "Send credits" : "Create request"}
-              </Button>
-            </FieldGroup>
-          </form>
-        </DialogContent>
-      </Dialog>
-      <Dialog open={reset} onOpenChange={setReset}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Start fresh?</DialogTitle>
-            <DialogDescription>
-              This removes access to your disposable wallet from this browser.
-              On-chain records remain. Pending transactions may still complete.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setReset(false)}>
-              Keep demo
-            </Button>
-            <Button
-              onClick={() => {
-                props.onReset();
-                setReset(false);
-              }}
-            >
-              Reset and remove wallet
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        onCloseFocus={() => dialogTrigger.current?.focus()}
+      />
     </div>
   );
 }

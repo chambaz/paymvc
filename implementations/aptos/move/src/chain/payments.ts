@@ -264,12 +264,8 @@ export function payments(
           if (funding.balance < funding.required) throw new FundingRequired();
         }
         progress("Registering your address and allocating 100 credits");
-        await transact(
-          c,
-          s,
-          "setup:register",
-          (ledger) => buildCall(c, s, ledger, "register"),
-          persist,
+        await transact(c, s, persist, progress, "setup:register", (ledger) =>
+          buildCall(c, s, ledger, "register"),
         );
         if (!(await registered(c, owner))) throw new ResultPending();
       }
@@ -329,8 +325,9 @@ export function payments(
       await transact(
         c,
         s,
-        label,
-        // transact builds only when no saved transaction exists. A retry
+        persist,
+        progress,
+        label, // transact builds only when no saved transaction exists. A retry
         // reconciles the saved transaction and skips this balance check.
         async (ledger) => {
           if (
@@ -350,7 +347,6 @@ export function payments(
               : [key.from, operationBytes(key.operation)],
           );
         },
-        persist,
       );
       if (!(await check())) throw new ResultPending();
     },

@@ -51,16 +51,20 @@ export class ExpiredTransaction extends Error {
   }
 }
 
+export type Progress = (message: string) => void;
+
 export async function transact(
   c: Deployment,
   s: Session,
+  persist: () => void,
+  progress: Progress,
   label: string,
   build: () => Promise<Transaction>,
-  persist: () => void,
 ) {
   const client = server(c);
   let record = s.journal[label];
   if (!record) {
+    progress("Preparing transaction");
     const tx = await build();
     const state = await client.getCurrentSystemState();
     const { response: service } = await client.ledgerService.getServiceInfo({});
@@ -95,6 +99,7 @@ export async function transact(
   if (record.confirmed) return record.hash;
   // A prior storage failure may have left evidence only in memory.
   persist();
+  progress("Waiting for confirmation");
   const bytes = fromBase64(record.raw);
   await verifyTransactionSignature(bytes, record.signature, {
     address: accountFor(s).address,

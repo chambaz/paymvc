@@ -59,6 +59,8 @@ async function fund(address: string) {
   await transact(
     c,
     s,
+    () => save(path, { journal: s.journal }),
+    () => {},
     `fund:${address}`,
     async () => {
       const tx = new Transaction();
@@ -68,7 +70,6 @@ async function fund(address: string) {
       );
       return tx;
     },
-    () => save(path, { journal: s.journal }),
   );
 }
 async function create(page: Page) {
@@ -198,6 +199,8 @@ test("canonical independent-user scenario, external transfer, reload, and reset"
         await transact(
           c,
           s,
+          () => save(path, s),
+          () => {},
           "external:3",
           async () => {
             const tx = new Transaction();
@@ -207,7 +210,6 @@ test("canonical independent-user scenario, external transfer, reload, and reset"
             );
             return tx;
           },
-          () => save(path, s),
         );
         await pages.b.evaluate(
           ({ key, raw }) => localStorage.setItem(key, raw),
@@ -278,6 +280,8 @@ test("native address-balance credits remain spendable", async () => {
   await transact(
     c,
     a,
+    persist,
+    () => {},
     "deposit",
     async () => {
       const tx = new Transaction();
@@ -291,7 +295,6 @@ test("native address-balance credits remain spendable", async () => {
       });
       return tx;
     },
-    persist,
   );
   expect(
     (await server(c).getBalance({ owner, coinType: coinType(c) })).balance

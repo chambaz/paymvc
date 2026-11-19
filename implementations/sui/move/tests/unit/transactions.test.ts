@@ -79,7 +79,7 @@ it("rebroadcasts the saved bytes without rebuilding, after persistence", async (
   const s = await saved();
   const build = vi.fn();
   const persist = vi.fn();
-  await transact(config, s, "payment", build, persist);
+  await transact(config, s, persist, () => {}, "payment", build);
   expect(build).not.toHaveBeenCalled();
   expect(client.executeTransaction).toHaveBeenCalledOnce();
   expect(persist.mock.invocationCallOrder[0]).toBeLessThan(
@@ -90,9 +90,16 @@ it("rebroadcasts the saved bytes without rebuilding, after persistence", async (
 it("does not broadcast when storage fails", async () => {
   const s = await saved();
   await expect(
-    transact(config, s, "payment", vi.fn(), () => {
-      throw new Error("quota");
-    }),
+    transact(
+      config,
+      s,
+      () => {
+        throw new Error("quota");
+      },
+      () => {},
+      "payment",
+      vi.fn(),
+    ),
   ).rejects.toThrow("quota");
   expect(client.executeTransaction).not.toHaveBeenCalled();
   expect(s.journal.payment).toBeDefined();
@@ -102,7 +109,7 @@ it("retains evidence after an uncertain broadcast", async () => {
   const evidence = { ...s.journal.payment };
   client.executeTransaction.mockRejectedValue(new Error("connection lost"));
   await expect(
-    transact(config, s, "payment", vi.fn(), vi.fn()),
+    transact(config, s, vi.fn(), () => {}, "payment", vi.fn()),
   ).rejects.toBeInstanceOf(UnknownOutcome);
   expect(s.journal.payment).toEqual(evidence);
 });
@@ -110,7 +117,7 @@ it("does not rebroadcast after a failed lookup", async () => {
   const s = await saved();
   client.getTransaction.mockRejectedValue(new Error("offline"));
   await expect(
-    transact(config, s, "payment", vi.fn(), vi.fn()),
+    transact(config, s, vi.fn(), () => {}, "payment", vi.fn()),
   ).rejects.toBeInstanceOf(UnknownOutcome);
   expect(client.executeTransaction).not.toHaveBeenCalled();
 });
@@ -123,7 +130,7 @@ it("requires retained history before declaring expiry", async () => {
     response: { lowestAvailableCheckpoint: 11n },
   });
   await expect(
-    transact(config, s, "payment", vi.fn(), vi.fn()),
+    transact(config, s, vi.fn(), () => {}, "payment", vi.fn()),
   ).rejects.toBeInstanceOf(UnknownOutcome);
   expect(s.journal.payment).toBeDefined();
   expect(client.executeTransaction).not.toHaveBeenCalled();
@@ -134,7 +141,7 @@ it("checks absence again after expiry before releasing evidence", async () => {
     systemState: { epoch: "3" },
   });
   await expect(
-    transact(config, s, "payment", vi.fn(), vi.fn()),
+    transact(config, s, vi.fn(), () => {}, "payment", vi.fn()),
   ).rejects.toBeInstanceOf(ExpiredTransaction);
   expect(client.getTransaction).toHaveBeenCalledTimes(2);
   expect(s.journal.payment).toBeUndefined();
@@ -147,7 +154,7 @@ it("accepts a transaction found at the expiry boundary", async () => {
   client.getTransaction
     .mockRejectedValueOnce(new TransactionError("notFound", "test"))
     .mockResolvedValueOnce({ $kind: "Transaction" });
-  await transact(config, s, "payment", vi.fn(), vi.fn());
+  await transact(config, s, vi.fn(), () => {}, "payment", vi.fn());
   expect(s.journal.payment?.confirmed).toBe(true);
   expect(client.executeTransaction).not.toHaveBeenCalled();
 });
@@ -155,7 +162,7 @@ it("releases a definitively failed transaction for explicit retry", async () => 
   const s = await saved();
   client.getTransaction.mockResolvedValue({ $kind: "FailedTransaction" });
   await expect(
-    transact(config, s, "payment", vi.fn(), vi.fn()),
+    transact(config, s, vi.fn(), () => {}, "payment", vi.fn()),
   ).rejects.toBeInstanceOf(RevertedTransaction);
   expect(s.journal.payment).toBeUndefined();
   expect(client.executeTransaction).not.toHaveBeenCalled();
@@ -169,7 +176,7 @@ it("releases bytes the network rejects permanently", async () => {
       { code: "INVALID_ARGUMENT" },
     ),
   );
-  const result = transact(config, s, "payment", vi.fn(), persist);
+  const result = transact(config, s, persist, () => {}, "payment", vi.fn());
   await expect(result).rejects.toBeInstanceOf(RejectedTransaction);
   await expect(result).rejects.toBeInstanceOf(RevertedTransaction);
   expect(s.journal.payment).toBeUndefined();
@@ -186,7 +193,7 @@ it.each([
     Object.assign(new Error(text), { code: "INVALID_ARGUMENT" }),
   );
   await expect(
-    transact(config, s, "payment", vi.fn(), vi.fn()),
+    transact(config, s, vi.fn(), () => {}, "payment", vi.fn()),
   ).rejects.toBeInstanceOf(UnknownOutcome);
   expect(s.journal.payment).toEqual(evidence);
 });

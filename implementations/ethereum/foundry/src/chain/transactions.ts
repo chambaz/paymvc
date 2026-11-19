@@ -57,7 +57,7 @@ export async function transact(
   const client = publicClient(config);
   let record = session.journal[label];
   if (!record) {
-    progress("Getting things ready");
+    progress("Preparing transaction");
     const wallet = createWalletClient({
       account: accountFor(session),
       chain: chainFor(config),
@@ -70,7 +70,7 @@ export async function transact(
   }
   // Also persist on retries: a previous storage write may have failed after creating the in-memory record.
   persist(); // If storage fails, nothing is broadcast.
-  progress("Waiting for the network");
+  progress("Waiting for confirmation");
   // Even previously confirmed entries are checked again when replaying setup after a reload.
   const existing = await client
     .getTransactionReceipt({ hash: record.hash })
