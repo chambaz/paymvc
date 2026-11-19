@@ -13,11 +13,7 @@ export function App({ config }: { config: Deployment }) {
   const [validation, setValidation] = useState("");
   const session = demo.session;
   const visitor = session ? accountFor(session).address : "";
-  const contacts = [
-    ...new Set(
-      demo.contacts.data?.pages.flatMap((page) => page.addresses) ?? [],
-    ),
-  ].map((address) => ({ address }));
+  const contacts = demo.contactAddresses.map((address) => ({ address }));
   const rows: Row[] = (demo.dashboard.data?.entries ?? []).map((entry) => {
     const isFromVisitor = entry.from === visitor;
     const counterparty = isFromVisitor ? entry.to : entry.from;

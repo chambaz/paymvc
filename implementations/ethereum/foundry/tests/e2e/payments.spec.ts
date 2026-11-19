@@ -310,6 +310,29 @@ test("second tab is read-only and corrupt storage has an explicit reset", async 
   ).toBeEnabled();
 });
 
+test("unreadable browser storage stops before a wallet is created", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Storage.prototype.getItem = () => {
+      throw new DOMException("Storage blocked", "SecurityError");
+    };
+  });
+  await page.goto("/");
+  const message = page.getByRole("alert").filter({
+    hasText: "Browser storage is unavailable",
+  });
+  await expect(message).toBeVisible();
+  await page
+    .getByRole("button", { name: "Create demo wallet", exact: true })
+    .click();
+  await expect(message).toBeVisible();
+  await expect(page.getByTestId("funding-address")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Reset Demo", exact: true }),
+  ).toHaveCount(0);
+});
+
 test("delayed payment result reconciles without another broadcast", async ({
   page,
 }) => {
@@ -391,6 +414,11 @@ test("payment retry rebroadcasts the same permit-signed transaction", async ({
     page.getByRole("alert").filter({ hasText: "Progress saved" }).first(),
   ).toBeVisible();
   await page.keyboard.press("Escape");
+  // After a reload, the saved operation is still explained, not only offered for recheck.
+  await page.reload();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "Outcome unknown" }),
+  ).toBeVisible();
   blocked = false;
   await page
     .getByRole("button", { name: "Recheck original operation", exact: true })
@@ -455,13 +483,47 @@ test("failed writes keep input and failed reads keep the last balance", async ({
     "Not enough demo credits",
   );
   await expect(page.getByLabel("Amount", { exact: true })).toHaveValue("101");
-  await page.keyboard.press("Escape");
-  await page.getByRole("button", { name: "Dismiss failed operation" }).click();
+  // Nothing was signed, so the form stays editable and the next attempt succeeds.
+  await page.getByLabel("Amount", { exact: true }).fill("7");
+  await page.getByRole("button", { name: "Send credits", exact: true }).click();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+  await expect(page.getByTestId("balance")).toHaveText("93");
   await page.route(config.rpcUrl, (route) => route.abort("failed"));
   await refresh(page);
   await expect(page.getByText("Balance may be out of date")).toBeVisible();
-  await expect(page.getByTestId("balance")).toHaveText("100");
+  await expect(page.getByTestId("balance")).toHaveText("93");
   await page.unrouteAll({ behavior: "wait" });
+});
+
+test("storage writes from another tab do not replace a running operation", async ({
+  page,
+  context,
+}) => {
+  const recipient = await registeredContact();
+  await start(page);
+  const second = await context.newPage();
+  await second.goto("/");
+  await expect(second.getByText("Read-only tab")).toBeVisible();
+  await page.route(config.rpcUrl, async (route) => {
+    if (route.request().postDataJSON().method === "eth_sendRawTransaction") {
+      // The theme is saved in the same origin's storage, so this tab receives a storage event.
+      await second.getByRole("button", { name: "Dark mode" }).click();
+      await page.waitForTimeout(250);
+    }
+    await route.continue();
+  });
+  await form(page, "Send", recipient, "7");
+  await expect(page.getByTestId("balance")).toHaveText("93");
+  await page.unrouteAll({ behavior: "wait" });
+  await second.close();
+  await page.reload();
+  await expect(page.getByTestId("balance")).toHaveText("93");
+  await expect(
+    page.getByRole("button", { name: "Send", exact: true }),
+  ).toBeEnabled();
+  await expect(
+    page.getByRole("button", { name: "Recheck original operation" }),
+  ).toHaveCount(0);
 });
 
 test("a failed read after Load more keeps the last balance and rows", async ({
