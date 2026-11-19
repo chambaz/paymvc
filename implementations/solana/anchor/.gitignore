@@ -1,13 +1,18 @@
-/target/
-/.anchor/
-/public/local.json
+# Dependencies, builds, and test output
 node_modules/
 dist/
+coverage/
+*.tsbuildinfo
+test-results/
+playwright-report/
+
+# Private local data: keys, sessions, and local deployments
+.local/
 .env
 .env.*
 !.env.example
-.local/
-test-results/
-playwright-report/
-coverage/
-*.tsbuildinfo
+public/local.json
+
+# Anchor
+/target/
+/.anchor/

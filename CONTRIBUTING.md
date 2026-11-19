@@ -26,7 +26,7 @@ npm run test:e2e
 npm run test:conformance
 ```
 
-Some implementations need extra toolchains or commands; see their READMEs.
+`npm run test:e2e` runs the browser tests against a local chain. `npm run test:conformance` checks the shared files and runs only inside the repository. Some implementations need extra toolchains or commands; see their READMEs.
 
 - A person must review every visual baseline change. Never update a baseline to hide a regression.
 - Report a testnet outage apart from an implementation failure.

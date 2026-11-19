@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "check": "tsc --noEmit && prettier --check . && tsx scripts/check-evidence.ts && aptos move compile --package-dir contracts --dev --fail-on-warning",
+    "check": "tsc --noEmit && prettier --check . && tsx scripts/validate-manifest.ts && aptos move compile --package-dir contracts --dev --fail-on-warning",
     "format": "prettier --write .",
     "build": "tsc --noEmit && vite build",
     "test": "aptos move test --package-dir contracts && vitest run",

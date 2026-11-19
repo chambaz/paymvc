@@ -17,7 +17,7 @@
     "test:visual": "docker run --rm --ipc=host --user \"$(id -u):$(id -g)\" -e HOME=/tmp -v \"$PWD\":/work -w /work mcr.microsoft.com/playwright:v1.65.0-noble npx playwright test -c playwright.visual.config.ts",
     "test:visual:update": "npm run test:visual -- --update-snapshots=all",
     "test:networks": "playwright test --config playwright.networks.config.ts",
-    "test:conformance": "node ../../../conformance/verify.mjs && npm run test:e2e",
+    "test:conformance": "node ../../../conformance/verify.mjs",
     "contracts:build": "forge build && tsx scripts/generate-abi.ts",
     "deploy": "tsx scripts/deploy.ts",
     "local": "tsx scripts/local.ts",

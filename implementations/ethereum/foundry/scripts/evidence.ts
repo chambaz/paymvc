@@ -35,7 +35,7 @@ addFormats.default(ajv);
 const validate = ajv.compile<Evidence>(read("evidence.schema.json"));
 
 /** Throws when `evidence` does not follow `evidence.schema.json`. */
-export function assertEvidence(evidence: unknown, path: string) {
+export function validateEvidence(evidence: unknown, path: string) {
   if (!validate(evidence))
     throw new Error(`${path}: ${ajv.errorsText(validate.errors)}`);
 }
@@ -108,7 +108,7 @@ export function writeEvidence(
       run,
     ].sort((a, b) => a.viewport!.localeCompare(b.viewport!));
   else evidence.chain = run;
-  assertEvidence(evidence, path);
+  validateEvidence(evidence, path);
   mkdirSync(dirname(path), { recursive: true });
   writeFileSync(path, JSON.stringify(evidence, null, 2) + "\n");
   console.log(`Evidence written: ${path}`);
