@@ -254,3 +254,35 @@ it.each([
   ).rejects.toBeInstanceOf(UnknownOutcome);
   expect(s.journal.payment).toEqual(evidence);
 });
+
+it("reports a failed epoch or history read as an unknown outcome", async () => {
+  const s = await saved();
+  client.getCurrentSystemState.mockRejectedValue(new Error("503"));
+  await expect(
+    transact(
+      config,
+      s,
+      vi.fn(),
+      () => {},
+      "payment",
+      vi.fn(),
+      async () => true,
+    ),
+  ).rejects.toBeInstanceOf(UnknownOutcome);
+  client.getCurrentSystemState.mockResolvedValue({
+    systemState: { epoch: "3" },
+  });
+  client.ledgerService.getServiceInfo.mockRejectedValue(new Error("503"));
+  await expect(
+    transact(
+      config,
+      s,
+      vi.fn(),
+      () => {},
+      "payment",
+      vi.fn(),
+      async () => true,
+    ),
+  ).rejects.toBeInstanceOf(UnknownOutcome);
+  expect(s.journal.payment).toBeDefined();
+});

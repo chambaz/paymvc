@@ -117,11 +117,15 @@ export async function transact(
   } catch (error) {
     if (!(error instanceof TransactionError) || error.reason !== "notFound")
       throw new UnknownOutcome();
-    const state = await client.getCurrentSystemState();
+    // A failed read proves nothing, so the outcome stays unknown.
+    const unknown = () => {
+      throw new UnknownOutcome();
+    };
+    const state = await client.getCurrentSystemState().catch(unknown);
     if (BigInt(state.systemState.epoch) > BigInt(record.epoch)) {
-      const { response: service } = await client.ledgerService.getServiceInfo(
-        {},
-      );
+      const { response: service } = await Promise.resolve(
+        client.ledgerService.getServiceInfo({}),
+      ).catch(unknown);
       const covered =
         service.lowestAvailableCheckpoint !== undefined &&
         service.lowestAvailableCheckpoint <= BigInt(record.checkpoint);
