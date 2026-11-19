@@ -1,9 +1,6 @@
 import { expect, it, vi } from "vitest";
 import { landedEarlier } from "../../src/chain/payments";
-import {
-  ResultPending,
-  RevertedTransaction,
-} from "../../src/chain/transactions";
+import { RevertedTransaction } from "../../src/chain/transactions";
 
 const reverted = new RevertedTransaction(42n);
 const entry = (exists: boolean) =>
@@ -37,9 +34,8 @@ it("ignores other errors without reading state", async () => {
   expect(read).not.toHaveBeenCalled();
 });
 
-it("leaves the result pending when the node cannot serve that slot", async () => {
+it("keeps the failure when the node cannot serve that slot", async () => {
+  // Never pending: an automatic recheck would sign a new transaction.
   const read = vi.fn().mockRejectedValue(new Error("Minimum context slot"));
-  await expect(
-    landedEarlier(reverted, read, () => true),
-  ).rejects.toBeInstanceOf(ResultPending);
+  await expect(landedEarlier(reverted, read, () => true)).resolves.toBe(false);
 });

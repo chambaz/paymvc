@@ -201,7 +201,10 @@ const pending = (): never => {
  * A new attempt can land after an earlier one that a lagging RPC did not show. It then
  * fails on chain because the earlier attempt already made the change. Reads state from
  * the failure's slot on and returns true when `done` finds the expected effect there.
- * A node that cannot serve that slot leaves the result pending.
+ *
+ * When that read fails, the confirmed failure stands. It is not reported as pending,
+ * because an automatic recheck would sign a new transaction. The user's explicit
+ * retry reads the state again before it signs.
  */
 export async function landedEarlier<T>(
   error: unknown,
@@ -209,7 +212,13 @@ export async function landedEarlier<T>(
   done: (state: T) => boolean,
 ) {
   if (!(error instanceof RevertedTransaction) || !error.slot) return false;
-  return done(await read(error.slot).catch(pending));
+  let state: T;
+  try {
+    state = await read(error.slot);
+  } catch {
+    return false;
+  }
+  return done(state);
 }
 
 export function payments(
