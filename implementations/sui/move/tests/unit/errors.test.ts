@@ -17,6 +17,13 @@ it("explains an abort in another module without raw codes", () => {
   expect(readableError(error)).toMatch(/would fail on-chain/);
 });
 
+it("explains an unmapped PayMVC abort without raw codes", () => {
+  const error = new Error(
+    `MoveAbort in 1st command, abort code: 10, in '0x${"a".repeat(64)}::paymvc::profiles' (instruction 3)`,
+  );
+  expect(readableError(error)).toMatch(/would fail on-chain/);
+});
+
 it("keeps the chain module's own messages", () => {
   expect(readableError(new Error("Not enough demo credits."))).toBe(
     "Not enough demo credits.",

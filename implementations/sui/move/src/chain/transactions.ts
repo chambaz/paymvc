@@ -63,9 +63,10 @@ export async function transact(
   /**
    * True when the operation's effect is not on chain. Checked from current state before
    * an expiry is accepted, because a node can report "not found" for an executed
-   * transaction whose history it no longer keeps.
+   * transaction whose history it no longer keeps. Without it, expiry needs retained
+   * history and two "not found" lookups.
    */
-  absent: () => Promise<boolean> = async () => true,
+  absent?: () => Promise<boolean>,
 ) {
   const client = server(c);
   let record = s.journal[label];
@@ -121,18 +122,32 @@ export async function transact(
       const { response: service } = await client.ledgerService.getServiceInfo(
         {},
       );
-      if (
-        service.lowestAvailableCheckpoint === undefined ||
-        service.lowestAvailableCheckpoint > BigInt(record.checkpoint)
-      )
-        throw new UnknownOutcome();
-      // Check again after observing expiry, so a transaction finalized at the boundary is not missed.
-      try {
-        result = await client.getTransaction({ digest: record.hash });
-      } catch (error) {
-        if (!(error instanceof TransactionError) || error.reason !== "notFound")
-          throw new UnknownOutcome();
-        if (!(await absent().catch(() => false))) {
+      const covered =
+        service.lowestAvailableCheckpoint !== undefined &&
+        service.lowestAvailableCheckpoint <= BigInt(record.checkpoint);
+      // While history covers the transaction, check again after observing expiry, so a
+      // transaction finalized at the boundary is not missed.
+      if (covered)
+        result = await client
+          .getTransaction({ digest: record.hash })
+          .catch((error: unknown) => {
+            if (
+              !(error instanceof TransactionError) ||
+              error.reason !== "notFound"
+            )
+              throw new UnknownOutcome();
+            return undefined;
+          });
+      if (!result) {
+        // The transaction can no longer execute, so current state decides, also after
+        // history is pruned. A failed read proves nothing either way.
+        if (!absent && !covered) throw new UnknownOutcome();
+        const gone = absent
+          ? await absent().catch(() => {
+              throw new UnknownOutcome();
+            })
+          : true;
+        if (!gone) {
           // The effect is on chain, so this transaction (the only way to cause it) executed.
           record.confirmed = true;
           persist();

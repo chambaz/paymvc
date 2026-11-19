@@ -19,8 +19,9 @@ export function readableError(error: unknown) {
   const abort = /abort code: (\d+), in '0x[0-9a-f]+::paymvc::/.exec(
     error.message,
   );
-  if (abort) return abortCodes[Number(abort[1])] ?? error.message;
-  if (/MoveAbort/.test(error.message))
-    return "The transaction would fail on-chain. Nothing was sent. Check your credits and SUI, then retry.";
+  const failed =
+    "The transaction would fail on-chain. Nothing was sent. Check your credits and SUI, then retry.";
+  if (abort) return abortCodes[Number(abort[1])] ?? failed;
+  if (/MoveAbort/.test(error.message)) return failed;
   return error.message;
 }
