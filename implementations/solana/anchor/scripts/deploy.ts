@@ -44,6 +44,8 @@ execFileSync(
     "--buffer",
     ".local/paymvc-buffer.json",
     "--use-tpu-client",
+    // No upgrade authority: the program cannot change under existing sessions.
+    "--final",
     "--commitment",
     "confirmed",
     "--with-compute-unit-price",

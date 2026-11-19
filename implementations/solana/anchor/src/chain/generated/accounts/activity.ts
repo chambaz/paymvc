@@ -17,6 +17,8 @@ import {
   fixEncoderSize,
   getAddressDecoder,
   getAddressEncoder,
+  getArrayDecoder,
+  getArrayEncoder,
   getBytesDecoder,
   getBytesEncoder,
   getStructDecoder,
@@ -47,16 +49,19 @@ export function getActivityDiscriminatorBytes(): ReadonlyUint8Array {
   return fixEncoderSize(getBytesEncoder(), 8).encode(ACTIVITY_DISCRIMINATOR);
 }
 
-export type Activity = { discriminator: ReadonlyUint8Array; entry: Address };
+export type Activity = {
+  discriminator: ReadonlyUint8Array;
+  entries: Array<Address>;
+};
 
-export type ActivityArgs = { entry: Address | HasAddress };
+export type ActivityArgs = { entries: Array<Address | HasAddress> };
 
 /** Gets the encoder for {@link ActivityArgs} account data. */
 export function getActivityEncoder(): FixedSizeEncoder<ActivityArgs> {
   return transformEncoder(
     getStructEncoder([
       ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
-      ["entry", getAddressEncoder()],
+      ["entries", getArrayEncoder(getAddressEncoder(), { size: 32 })],
     ]),
     (value) => ({ ...value, discriminator: ACTIVITY_DISCRIMINATOR }),
   );
@@ -66,7 +71,7 @@ export function getActivityEncoder(): FixedSizeEncoder<ActivityArgs> {
 export function getActivityDecoder(): FixedSizeDecoder<Activity> {
   return getStructDecoder([
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
-    ["entry", getAddressDecoder()],
+    ["entries", getArrayDecoder(getAddressDecoder(), { size: 32 })],
   ]);
 }
 
@@ -145,5 +150,5 @@ export async function fetchAllMaybeActivity(
 }
 
 export function getActivitySize(): number {
-  return 40;
+  return 1032;
 }

@@ -12,6 +12,7 @@ import {
 const mocks = vi.hoisted(() => ({
   status: vi.fn(),
   height: vi.fn(),
+  slot: vi.fn(),
   broadcast: vi.fn(),
 }));
 vi.mock("../../src/chain/config", async (importOriginal) => ({
@@ -22,6 +23,9 @@ vi.mock("../../src/chain/config", async (importOriginal) => ({
     }),
     getBlockHeight: (...args: unknown[]) => ({
       send: () => mocks.height(...args),
+    }),
+    getSlot: (...args: unknown[]) => ({
+      send: () => mocks.slot(...args),
     }),
     sendTransaction: (...args: unknown[]) => ({
       send: () => mocks.broadcast(...args),
@@ -42,6 +46,7 @@ afterEach(() => {
 beforeEach(async () => {
   vi.resetAllMocks();
   vi.useFakeTimers();
+  mocks.slot.mockResolvedValue(150n);
   session = {
     ...(await newSession(config)),
     journal: {
@@ -73,19 +78,21 @@ const run = (persist = () => {}, c = config) =>
       },
     ),
   );
-const confirmed = { confirmationStatus: "confirmed", err: null };
+const confirmed = { confirmationStatus: "confirmed", err: null, slot: 7n };
 it("reconciles a confirmed payment without rebroadcast or a second signature", async () => {
   mocks.status.mockResolvedValue({
-    value: [{ confirmationStatus: "confirmed", err: null }],
+    value: [{ confirmationStatus: "confirmed", err: null, slot: 7n }],
   });
   await run();
   expect(session.journal.send!.confirmed).toBe(true);
   expect(mocks.broadcast).not.toHaveBeenCalled();
 });
 it("accepts confirmation found by the final expiry lookup", async () => {
-  mocks.status.mockResolvedValueOnce({ value: [null] }).mockResolvedValueOnce({
-    value: [{ confirmationStatus: "confirmed", err: null }],
-  });
+  mocks.status
+    .mockResolvedValueOnce({ context: { slot: 200n }, value: [null] })
+    .mockResolvedValueOnce({
+      value: [{ confirmationStatus: "confirmed", err: null, slot: 7n }],
+    });
   mocks.height.mockResolvedValue(101n);
   await run();
   expect(session.journal.send!.confirmed).toBe(true);
@@ -97,7 +104,7 @@ it("accepts confirmation found by the final expiry lookup", async () => {
 });
 it("retains evidence if the final expiry lookup fails", async () => {
   mocks.status
-    .mockResolvedValueOnce({ value: [null] })
+    .mockResolvedValueOnce({ context: { slot: 200n }, value: [null] })
     .mockRejectedValueOnce(new Error("RPC unavailable"));
   mocks.height.mockResolvedValue(101n);
   await expect(run()).rejects.toBeInstanceOf(UnknownOutcome);
@@ -106,9 +113,11 @@ it("retains evidence if the final expiry lookup fails", async () => {
 });
 it("persists before rebroadcasting the exact saved bytes at the expiry boundary", async () => {
   const persist = vi.fn();
-  mocks.status.mockResolvedValueOnce({ value: [null] }).mockResolvedValueOnce({
-    value: [{ confirmationStatus: "confirmed", err: null }],
-  });
+  mocks.status
+    .mockResolvedValueOnce({ context: { slot: 200n }, value: [null] })
+    .mockResolvedValueOnce({
+      value: [{ confirmationStatus: "confirmed", err: null, slot: 7n }],
+    });
   mocks.height.mockResolvedValue(100n);
   mocks.broadcast.mockImplementation(async (raw) => {
     expect(persist).toHaveBeenCalled();
@@ -125,7 +134,7 @@ it("keeps saved evidence after an RPC failure", async () => {
   expect(mocks.broadcast).not.toHaveBeenCalled();
 });
 it("requires finalized expiry and a second history lookup before explicit retry", async () => {
-  mocks.status.mockResolvedValue({ value: [null] });
+  mocks.status.mockResolvedValue({ context: { slot: 200n }, value: [null] });
   mocks.height.mockResolvedValue(101n);
   await expect(run()).rejects.toBeInstanceOf(ExpiredTransaction);
   expect(mocks.status).toHaveBeenCalledTimes(2);
@@ -135,8 +144,8 @@ it("requires finalized expiry and a second history lookup before explicit retry"
 it("never discards a previously confirmed transaction when history is unavailable", async () => {
   session.journal.send!.confirmed = true;
   mocks.status
-    .mockResolvedValueOnce({ value: [null] })
-    .mockResolvedValueOnce({ value: [null] })
+    .mockResolvedValueOnce({ context: { slot: 200n }, value: [null] })
+    .mockResolvedValueOnce({ context: { slot: 200n }, value: [null] })
     .mockRejectedValueOnce(new Error("RPC unavailable"));
   mocks.height.mockResolvedValue(101n);
   await expect(run()).rejects.toBeInstanceOf(UnknownOutcome);
@@ -155,14 +164,16 @@ it("a confirmed on-chain error permits explicit retry", async () => {
   expect(session.journal.send).toBeUndefined();
 });
 it("a stale transaction lands as a failure, clears the journal, and allows a rebuild", async () => {
-  mocks.status.mockResolvedValueOnce({ value: [null] }).mockResolvedValueOnce({
-    value: [
-      {
-        confirmationStatus: "confirmed",
-        err: { InstructionError: [0, { Custom: 6000 }] },
-      },
-    ],
-  });
+  mocks.status
+    .mockResolvedValueOnce({ context: { slot: 200n }, value: [null] })
+    .mockResolvedValueOnce({
+      value: [
+        {
+          confirmationStatus: "confirmed",
+          err: { InstructionError: [0, { Custom: 6000 }] },
+        },
+      ],
+    });
   mocks.height.mockResolvedValue(100n);
   mocks.broadcast.mockResolvedValue("1".repeat(64));
   await expect(run()).rejects.toBeInstanceOf(RevertedTransaction);
@@ -200,14 +211,16 @@ it("storage failure stops all network work", async () => {
 });
 
 it("reports rejected submission and recovers with the exact saved bytes", async () => {
-  mocks.status.mockResolvedValue({ value: [null] });
+  mocks.status.mockResolvedValue({ context: { slot: 200n }, value: [null] });
   mocks.height.mockResolvedValue(100n);
   mocks.broadcast.mockRejectedValueOnce(new Error("RPC unavailable"));
   await expect(run()).rejects.toBeInstanceOf(BroadcastUnavailable);
   expect(session.journal.send!.raw).toBe("saved-wire-bytes");
-  mocks.status.mockResolvedValueOnce({ value: [null] }).mockResolvedValueOnce({
-    value: [{ confirmationStatus: "confirmed", err: null }],
-  });
+  mocks.status
+    .mockResolvedValueOnce({ context: { slot: 200n }, value: [null] })
+    .mockResolvedValueOnce({
+      value: [{ confirmationStatus: "confirmed", err: null, slot: 7n }],
+    });
   await run();
   expect(mocks.broadcast.mock.calls.map(([raw]) => raw)).toEqual([
     "saved-wire-bytes",
@@ -217,9 +230,11 @@ it("reports rejected submission and recovers with the exact saved bytes", async 
 });
 
 it("accepts confirmation after a failed submission response", async () => {
-  mocks.status.mockResolvedValueOnce({ value: [null] }).mockResolvedValueOnce({
-    value: [{ confirmationStatus: "confirmed", err: null }],
-  });
+  mocks.status
+    .mockResolvedValueOnce({ context: { slot: 200n }, value: [null] })
+    .mockResolvedValueOnce({
+      value: [{ confirmationStatus: "confirmed", err: null, slot: 7n }],
+    });
   mocks.height.mockResolvedValue(100n);
   mocks.broadcast.mockRejectedValue(new Error("Already processed"));
   await run();
@@ -229,17 +244,17 @@ it("accepts confirmation after a failed submission response", async () => {
 it("keeps waiting through a failed read and still confirms", async () => {
   mocks.status
     .mockRejectedValueOnce(new Error("HTTP error (429)"))
-    .mockResolvedValueOnce({ value: [null] })
-    .mockResolvedValue({ value: [confirmed] });
+    .mockResolvedValueOnce({ context: { slot: 200n }, value: [null] })
+    .mockResolvedValue({ context: { slot: 200n }, value: [confirmed] });
   mocks.height.mockResolvedValue(100n);
   await run();
   expect(session.journal.send!.confirmed).toBe(true);
 });
 it("never treats a failed read as proof of expiry", async () => {
   mocks.status
-    .mockResolvedValueOnce({ value: [null] })
+    .mockResolvedValueOnce({ context: { slot: 200n }, value: [null] })
     .mockRejectedValueOnce(new Error("HTTP error (429)"))
-    .mockResolvedValue({ value: [confirmed] });
+    .mockResolvedValue({ context: { slot: 200n }, value: [confirmed] });
   mocks.height.mockResolvedValue(101n);
   await run();
   expect(session.journal.send!.confirmed).toBe(true);

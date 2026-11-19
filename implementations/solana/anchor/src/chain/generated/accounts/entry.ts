@@ -23,6 +23,8 @@ import {
   getStructEncoder,
   getU64Decoder,
   getU64Encoder,
+  getU8Decoder,
+  getU8Encoder,
   transformEncoder,
   type Account,
   type Address,
@@ -67,6 +69,7 @@ export type Entry = {
   amount: bigint;
   kind: Kind;
   state: State;
+  bump: number;
 };
 
 export type EntryArgs = {
@@ -76,6 +79,7 @@ export type EntryArgs = {
   amount: number | bigint;
   kind: KindArgs;
   state: StateArgs;
+  bump: number;
 };
 
 /** Gets the encoder for {@link EntryArgs} account data. */
@@ -89,6 +93,7 @@ export function getEntryEncoder(): FixedSizeEncoder<EntryArgs> {
       ["amount", getU64Encoder()],
       ["kind", getKindEncoder()],
       ["state", getStateEncoder()],
+      ["bump", getU8Encoder()],
     ]),
     (value) => ({ ...value, discriminator: ENTRY_DISCRIMINATOR }),
   );
@@ -104,6 +109,7 @@ export function getEntryDecoder(): FixedSizeDecoder<Entry> {
     ["amount", getU64Decoder()],
     ["kind", getKindDecoder()],
     ["state", getStateDecoder()],
+    ["bump", getU8Decoder()],
   ]);
 }
 
@@ -182,5 +188,5 @@ export async function fetchAllMaybeEntry(
 }
 
 export function getEntrySize(): number {
-  return 114;
+  return 115;
 }

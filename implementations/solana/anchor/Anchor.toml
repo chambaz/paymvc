@@ -9,13 +9,13 @@ resolution = true
 skip-lint = false
 
 [programs.localnet]
-paymvc = "Wn8Ma9d5nMPhZhqUCXKSJMJMSNGZ8bunifjkD84rA64"
+paymvc = "2LqK3mU8MZ1Hc3nBHqwhpFvH44bqbJJ9YQyEJLH6mywa"
 
 [programs.devnet]
-paymvc = "Wn8Ma9d5nMPhZhqUCXKSJMJMSNGZ8bunifjkD84rA64"
+paymvc = "2LqK3mU8MZ1Hc3nBHqwhpFvH44bqbJJ9YQyEJLH6mywa"
 
 [provider]
-cluster = "devnet"
+cluster = "localnet"
 wallet = ".local/deployer.json"
 
 [scripts]

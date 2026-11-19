@@ -90,7 +90,7 @@ import {
 } from "../pdas";
 
 export const PAYMVC_PROGRAM_ADDRESS =
-  "Wn8Ma9d5nMPhZhqUCXKSJMJMSNGZ8bunifjkD84rA64" as Address<"Wn8Ma9d5nMPhZhqUCXKSJMJMSNGZ8bunifjkD84rA64">;
+  "2LqK3mU8MZ1Hc3nBHqwhpFvH44bqbJJ9YQyEJLH6mywa" as Address<"2LqK3mU8MZ1Hc3nBHqwhpFvH44bqbJJ9YQyEJLH6mywa">;
 
 export const PaymvcAccount = {
   0: "Activity",
@@ -272,7 +272,7 @@ export function identifyPaymvcInstruction(
 }
 
 export type ParsedPaymvcInstruction<
-  TProgram extends string = "Wn8Ma9d5nMPhZhqUCXKSJMJMSNGZ8bunifjkD84rA64",
+  TProgram extends string = "2LqK3mU8MZ1Hc3nBHqwhpFvH44bqbJJ9YQyEJLH6mywa",
 > =
   | ({
       instructionType: typeof PaymvcInstruction.Approve;

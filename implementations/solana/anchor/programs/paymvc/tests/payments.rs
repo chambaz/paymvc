@@ -10,7 +10,7 @@ use anchor_spl::{
 };
 use litesvm::LiteSVM;
 use paymvc::{
-    state::{Activity, Directory, Entry, Kind, Member, Profile, State},
+    state::{Activity, Directory, Entry, Kind, Member, Profile, State, ACTIVITY_PAGE},
     PayError,
 };
 use solana_instruction_error::InstructionError;
@@ -41,8 +41,13 @@ fn credits(owner: Pubkey) -> Pubkey {
 fn entry(from: Pubkey, op: u8) -> Pubkey {
     pda(&[b"entry", from.as_ref(), &[op; 32]])
 }
+/// The activity page that holds record `index`.
 fn activity(owner: Pubkey, index: u64) -> Pubkey {
-    pda(&[b"activity", owner.as_ref(), &index.to_le_bytes()])
+    pda(&[
+        b"activity",
+        owner.as_ref(),
+        &(index / ACTIVITY_PAGE).to_le_bytes(),
+    ])
 }
 fn ix(data: impl InstructionData, accounts: impl ToAccountMetas) -> Instruction {
     Instruction::new_with_bytes(paymvc::ID, &data.data(), accounts.to_account_metas(None))
@@ -59,6 +64,9 @@ fn pay(error: PayError) -> u32 {
 }
 fn not_initialized() -> u32 {
     ErrorCode::AccountNotInitialized.into()
+}
+fn anchor(error: ErrorCode) -> u32 {
+    error.into()
 }
 
 struct Demo {
@@ -78,18 +86,7 @@ impl Demo {
             svm.airdrop(&person.pubkey(), 2_000_000_000).unwrap();
         }
         let mut demo = Self { svm, people };
-        let initialize = ix(
-            paymvc::instruction::Initialize {},
-            paymvc::accounts::Initialize {
-                payer: demo.key(0),
-                directory: pda(&[b"directory"]),
-                mint: mint(),
-                authority: pda(&[b"authority"]),
-                token_program: TOKEN_ID,
-                system_program: system_program::ID,
-            },
-        );
-        demo.run(0, initialize).unwrap();
+        demo.run(0, demo.initialize_ix(0)).unwrap();
         for i in 0..6 {
             demo.register(i).unwrap();
         }
@@ -98,7 +95,42 @@ impl Demo {
     fn key(&self, i: usize) -> Pubkey {
         self.people[i].pubkey()
     }
+    fn initialize_ix(&self, payer: usize) -> Instruction {
+        ix(
+            paymvc::instruction::Initialize {},
+            paymvc::accounts::Initialize {
+                payer: self.key(payer),
+                directory: pda(&[b"directory"]),
+                mint: mint(),
+                authority: pda(&[b"authority"]),
+                token_program: TOKEN_ID,
+                system_program: system_program::ID,
+            },
+        )
+    }
+    /// Runs instructions that also need the signatures in `extra`.
+    fn run_signed(
+        &mut self,
+        actor: usize,
+        instructions: &[Instruction],
+        extra: &[&Keypair],
+    ) -> Result<(), TransactionError> {
+        self.svm.expire_blockhash();
+        let msg = Message::new_with_blockhash(
+            instructions,
+            Some(&self.key(actor)),
+            &self.svm.latest_blockhash(),
+        );
+        let mut signers = vec![&self.people[actor]];
+        signers.extend_from_slice(extra);
+        let tx = VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &signers).unwrap();
+        self.svm.send_transaction(tx).map(|_| ()).map_err(|e| e.err)
+    }
     fn run(&mut self, actor: usize, instruction: Instruction) -> Result<(), TransactionError> {
+        self.measure(actor, instruction).map(|_| ())
+    }
+    /// Runs one instruction and returns the compute units it used.
+    fn measure(&mut self, actor: usize, instruction: Instruction) -> Result<u64, TransactionError> {
         // Distinct blockhashes let tests reach program constraints instead of signature deduplication.
         self.svm.expire_blockhash();
         let msg = Message::new_with_blockhash(
@@ -109,7 +141,10 @@ impl Demo {
         let tx =
             VersionedTransaction::try_new(VersionedMessage::Legacy(msg), &[&self.people[actor]])
                 .unwrap();
-        self.svm.send_transaction(tx).map(|_| ()).map_err(|e| e.err)
+        self.svm
+            .send_transaction(tx)
+            .map(|meta| meta.compute_units_consumed)
+            .map_err(|e| e.err)
     }
     fn read<T: AccountDeserialize>(&self, address: Pubkey) -> Option<T> {
         let account = self.svm.get_account(&address)?;
@@ -143,7 +178,7 @@ impl Demo {
             .map(|index| {
                 self.read::<Activity>(activity(self.key(owner), index))
                     .unwrap()
-                    .entry
+                    .entries[(index % ACTIVITY_PAGE) as usize]
             })
             .collect()
     }
@@ -229,8 +264,11 @@ impl Demo {
         self.run(from, self.request_ix(from, payer, op, amount))
     }
     fn approve(&mut self, payer: usize, from: usize, op: u8) -> Result<(), TransactionError> {
+        self.run(payer, self.approve_ix(payer, from, op))
+    }
+    fn approve_ix(&self, payer: usize, from: usize, op: u8) -> Instruction {
         let (payer_key, from_key) = (self.key(payer), self.key(from));
-        let instruction = ix(
+        ix(
             paymvc::instruction::Approve {
                 from: from_key,
                 operation: [op; 32],
@@ -243,8 +281,7 @@ impl Demo {
                 from_credits: credits(from_key),
                 token_program: TOKEN_ID,
             },
-        );
-        self.run(payer, instruction)
+        )
     }
     fn decline_ix(&self, payer: usize, from: usize, op: u8) -> Instruction {
         ix(
@@ -414,7 +451,10 @@ fn self_payments_and_substituted_token_accounts_fail() {
     );
     let mut instruction = d.send_ix(0, 1, 1, 5);
     instruction.accounts[8].pubkey = credits(d.key(2));
-    assert!(d.run(0, instruction).is_err());
+    assert_eq!(
+        code(d.run(0, instruction)),
+        anchor(ErrorCode::ConstraintTokenOwner)
+    );
     assert_eq!(d.balance(2), 100);
     assert_eq!(d.count(0), 0);
 }
@@ -596,4 +636,164 @@ fn absolute_activity_cursor_is_stable_when_a_record_lands_between_pages() {
     assert_eq!(second, [entry(d.key(0), 1)]);
     // The new record is at the head of the next fresh read.
     assert_eq!(d.activity(0, d.count(0), 1), [entry(d.key(1), 4)]);
+}
+
+#[test]
+fn initialize_creates_a_fixed_supply_mint_once() {
+    let mut d = Demo::new();
+    let demo_mint: anchor_spl::token::Mint = d.read(mint()).unwrap();
+    assert_eq!(demo_mint.decimals, 0);
+    assert_eq!(
+        Option::<Pubkey>::from(demo_mint.mint_authority),
+        Some(pda(&[b"authority"]))
+    );
+    assert!(Option::<Pubkey>::from(demo_mint.freeze_authority).is_none());
+    assert_eq!(demo_mint.supply, 600);
+    assert_eq!(code(d.run(1, d.initialize_ix(1))), ALREADY_IN_USE);
+    assert_eq!(d.directory(), 6);
+}
+
+#[test]
+fn approval_pays_only_the_requesters_token_account() {
+    let mut d = Demo::new();
+    d.request(1, 0, 1, 20).unwrap();
+    let mut instruction = d.approve_ix(0, 1, 1);
+    // `from_credits` must be the requester's associated token account.
+    instruction.accounts[4].pubkey = credits(d.key(2));
+    assert_eq!(
+        code(d.run(0, instruction)),
+        anchor(ErrorCode::ConstraintTokenOwner)
+    );
+    assert!(d.state(1, 1) == State::Pending);
+    assert_eq!((d.balance(0), d.balance(2)), (100, 100));
+}
+
+#[test]
+fn profiles_and_mints_cannot_be_substituted() {
+    let mut d = Demo::new();
+    let mut instruction = d.send_ix(0, 1, 1, 5);
+    // Another user's profile in place of the sender's.
+    instruction.accounts[1].pubkey = profile(d.key(2));
+    assert_eq!(
+        code(d.run(0, instruction)),
+        anchor(ErrorCode::ConstraintSeeds)
+    );
+    // A mint that the sender controls, with its own token accounts.
+    let fake = Keypair::new();
+    // The packed size of an SPL Token mint.
+    let space = 82;
+    let rent = d.svm.minimum_balance_for_rent_exemption(space);
+    let (owner, payee) = (d.key(0), d.key(1));
+    let ata = |wallet: &Pubkey| {
+        anchor_spl::associated_token::get_associated_token_address(wallet, &fake.pubkey())
+    };
+    let create_ata = |wallet: &Pubkey| {
+        anchor_spl::associated_token::spl_associated_token_account::instruction::create_associated_token_account(
+            &owner,
+            wallet,
+            &fake.pubkey(),
+            &TOKEN_ID,
+        )
+    };
+    let setup = [
+        anchor_lang::solana_program::system_instruction::create_account(
+            &owner,
+            &fake.pubkey(),
+            rent,
+            space as u64,
+            &TOKEN_ID,
+        ),
+        spl_token::instruction::initialize_mint2(&TOKEN_ID, &fake.pubkey(), &owner, None, 0)
+            .unwrap(),
+        create_ata(&owner),
+        create_ata(&payee),
+        spl_token::instruction::mint_to(&TOKEN_ID, &fake.pubkey(), &ata(&owner), &owner, &[], 100)
+            .unwrap(),
+    ];
+    d.run_signed(0, &setup, &[&fake]).unwrap();
+    let mut instruction = d.send_ix(0, 1, 1, 5);
+    instruction.accounts[6].pubkey = fake.pubkey();
+    instruction.accounts[7].pubkey = ata(&owner);
+    instruction.accounts[8].pubkey = ata(&payee);
+    assert_eq!(
+        code(d.run(0, instruction)),
+        anchor(ErrorCode::ConstraintSeeds)
+    );
+    assert!(d.entry(0, 1).is_none());
+    assert_eq!((d.balance(0), d.balance(1), d.count(0)), (100, 100, 0));
+}
+
+#[test]
+fn payments_prepared_from_one_read_land_within_an_activity_page() {
+    let mut d = Demo::new();
+    // Two senders build payments to the same recipient from the same activity count.
+    let first = d.send_ix(0, 2, 1, 5);
+    let second = d.send_ix(1, 2, 1, 5);
+    d.run(0, first).unwrap();
+    d.run(1, second).unwrap();
+    assert_eq!(d.count(2), 2);
+    assert_eq!(
+        d.activity(2, 2, 2),
+        [entry(d.key(1), 1), entry(d.key(0), 1)]
+    );
+}
+
+#[test]
+fn a_stale_activity_page_fails_only_across_a_page_boundary() {
+    let mut d = Demo::new();
+    for op in 1..ACTIVITY_PAGE as u8 {
+        d.request(0, 2, op, 1).unwrap();
+    }
+    let stale = d.send_ix(1, 2, 1, 5);
+    // This record fills the recipient's first page, so the next one goes to the second page.
+    d.request(3, 2, 1, 1).unwrap();
+    assert_eq!(code(d.run(1, stale)), anchor(ErrorCode::ConstraintSeeds));
+    assert_eq!(d.balance(1), 100);
+    d.send(1, 2, 1, 5).unwrap();
+    assert_eq!(d.count(2), ACTIVITY_PAGE + 1);
+    assert_eq!(
+        d.activity(2, ACTIVITY_PAGE + 1, 2),
+        [entry(d.key(1), 1), entry(d.key(3), 1)]
+    );
+}
+
+#[test]
+fn instructions_stay_well_below_the_compute_limit() {
+    // Regression bounds. PDA bump searches make the cost vary with each key: across 40
+    // random keys, the most was about 65k units for register and 60k for send.
+    let mut d = Demo::new();
+    let used = [
+        ("register", d.measure(6, d.register_ix(6)).unwrap(), 120_000),
+        (
+            "send",
+            d.measure(0, d.send_ix(0, 1, 1, 5)).unwrap(),
+            120_000,
+        ),
+        (
+            "request",
+            d.measure(1, d.request_ix(1, 0, 2, 5)).unwrap(),
+            80_000,
+        ),
+        (
+            "approve",
+            d.measure(0, d.approve_ix(0, 1, 2)).unwrap(),
+            60_000,
+        ),
+        (
+            "request",
+            d.measure(1, d.request_ix(1, 0, 3, 5)).unwrap(),
+            80_000,
+        ),
+        (
+            "decline",
+            d.measure(0, d.decline_ix(0, 1, 3)).unwrap(),
+            10_000,
+        ),
+    ];
+    for (name, units, limit) in used {
+        assert!(
+            units < limit,
+            "{name} used {units} of {limit} compute units"
+        );
+    }
 }

@@ -7,14 +7,27 @@ use anchor_spl::{
 pub mod state;
 use state::*;
 
-declare_id!("Wn8Ma9d5nMPhZhqUCXKSJMJMSNGZ8bunifjkD84rA64");
+#[cfg(not(feature = "no-entrypoint"))]
+solana_security_txt::security_txt! {
+    name: "PayMVC",
+    project_url: "https://paymvc.com",
+    contacts: "link:https://github.com/chambaz/paymvc/security/advisories/new",
+    policy: "https://github.com/chambaz/paymvc/blob/main/SECURITY.md",
+    source_code: "https://github.com/chambaz/paymvc"
+}
+
+declare_id!("2LqK3mU8MZ1Hc3nBHqwhpFvH44bqbJJ9YQyEJLH6mywa");
 
 #[program]
 pub mod paymvc {
     use super::*;
 
     /// Create the directory and the demo mint. No caller receives mint authority.
-    pub fn initialize(_ctx: Context<Initialize>) -> Result<()> {
+    pub fn initialize(ctx: Context<Initialize>) -> Result<()> {
+        ctx.accounts.directory.set_inner(Directory {
+            count: 0,
+            bump: ctx.bumps.directory,
+        });
         Ok(())
     }
 
@@ -24,6 +37,7 @@ pub mod paymvc {
         accounts.profile.set_inner(Profile {
             owner: accounts.owner.key(),
             activity_count: 0,
+            bump: ctx.bumps.profile,
         });
         accounts.member.owner = accounts.owner.key();
         accounts.directory.count += 1;
@@ -66,6 +80,7 @@ pub mod paymvc {
             amount,
             kind: Kind::Transfer,
             state: State::Paid,
+            bump: ctx.bumps.entry,
         });
         let entry = accounts.entry.key();
         add_activity(
@@ -93,6 +108,7 @@ pub mod paymvc {
             amount,
             kind: Kind::Request,
             state: State::Pending,
+            bump: ctx.bumps.entry,
         });
         let entry = accounts.entry.key();
         add_activity(
@@ -144,10 +160,16 @@ fn validate(amount: u64, operation: [u8; 32]) -> Result<()> {
     Ok(())
 }
 
-/// Append the entry to one participant's numbered activity list.
-fn add_activity(entry: Pubkey, profile: &mut Profile, activity: &mut Activity) {
-    activity.entry = entry;
+/// Append the entry to one participant's activity, in the page that holds its next index.
+/// Activity pages are boxed in the account structs: two 1 KB pages exceed the 4 KB stack frame.
+fn add_activity(entry: Pubkey, profile: &mut Profile, page: &mut Activity) {
+    page.entries[(profile.activity_count % ACTIVITY_PAGE) as usize] = entry;
     profile.activity_count += 1;
+}
+
+/// The activity page that holds an account's next record.
+fn activity_page(profile: &Profile) -> [u8; 8] {
+    (profile.activity_count / ACTIVITY_PAGE).to_le_bytes()
 }
 
 #[derive(Accounts)]
@@ -172,7 +194,7 @@ pub struct Register<'info> {
     /// `init` fails if the profile exists, so registration cannot repeat.
     #[account(init, payer = owner, space = 8 + Profile::INIT_SPACE, seeds = [b"profile", owner.key().as_ref()], bump)]
     pub profile: Account<'info, Profile>,
-    #[account(mut, seeds = [b"directory"], bump)]
+    #[account(mut, seeds = [b"directory"], bump = directory.bump)]
     pub directory: Account<'info, Directory>,
     #[account(init, payer = owner, space = 8 + Member::INIT_SPACE, seeds = [b"member".as_ref(), &directory.count.to_le_bytes()], bump)]
     pub member: Account<'info, Member>,
@@ -194,9 +216,9 @@ pub struct Send<'info> {
     #[account(mut)]
     pub from: Signer<'info>,
     /// The profile seeds prove that both participants are registered.
-    #[account(mut, seeds = [b"profile", from.key().as_ref()], bump)]
+    #[account(mut, seeds = [b"profile", from.key().as_ref()], bump = from_profile.bump)]
     pub from_profile: Account<'info, Profile>,
-    #[account(mut, seeds = [b"profile", to.as_ref()], bump)]
+    #[account(mut, seeds = [b"profile", to.as_ref()], bump = to_profile.bump)]
     pub to_profile: Account<'info, Profile>,
     /// `init` fails if `(from, operation)` was used. The participant check runs here,
     /// before the activity accounts are created, so a self-payment fails with InvalidParticipants.
@@ -206,10 +228,10 @@ pub struct Send<'info> {
         constraint = to != from.key() @ PayError::InvalidParticipants,
     )]
     pub entry: Account<'info, Entry>,
-    #[account(init, payer = from, space = 8 + Activity::INIT_SPACE, seeds = [b"activity", from.key().as_ref(), &from_profile.activity_count.to_le_bytes()], bump)]
-    pub from_activity: Account<'info, Activity>,
-    #[account(init, payer = from, space = 8 + Activity::INIT_SPACE, seeds = [b"activity", to.as_ref(), &to_profile.activity_count.to_le_bytes()], bump)]
-    pub to_activity: Account<'info, Activity>,
+    #[account(init_if_needed, payer = from, space = 8 + Activity::INIT_SPACE, seeds = [b"activity", from.key().as_ref(), &activity_page(&from_profile)], bump)]
+    pub from_activity: Box<Account<'info, Activity>>,
+    #[account(init_if_needed, payer = from, space = 8 + Activity::INIT_SPACE, seeds = [b"activity", to.as_ref(), &activity_page(&to_profile)], bump)]
+    pub to_activity: Box<Account<'info, Activity>>,
     #[account(seeds = [b"mint"], bump)]
     pub mint: Account<'info, Mint>,
     #[account(mut, associated_token::mint = mint, associated_token::authority = from)]
@@ -225,9 +247,9 @@ pub struct Send<'info> {
 pub struct Request<'info> {
     #[account(mut)]
     pub from: Signer<'info>,
-    #[account(mut, seeds = [b"profile", from.key().as_ref()], bump)]
+    #[account(mut, seeds = [b"profile", from.key().as_ref()], bump = from_profile.bump)]
     pub from_profile: Account<'info, Profile>,
-    #[account(mut, seeds = [b"profile", payer.as_ref()], bump)]
+    #[account(mut, seeds = [b"profile", payer.as_ref()], bump = payer_profile.bump)]
     pub payer_profile: Account<'info, Profile>,
     #[account(
         init, payer = from, space = 8 + Entry::INIT_SPACE,
@@ -235,10 +257,10 @@ pub struct Request<'info> {
         constraint = payer != from.key() @ PayError::InvalidParticipants,
     )]
     pub entry: Account<'info, Entry>,
-    #[account(init, payer = from, space = 8 + Activity::INIT_SPACE, seeds = [b"activity", from.key().as_ref(), &from_profile.activity_count.to_le_bytes()], bump)]
-    pub from_activity: Account<'info, Activity>,
-    #[account(init, payer = from, space = 8 + Activity::INIT_SPACE, seeds = [b"activity", payer.as_ref(), &payer_profile.activity_count.to_le_bytes()], bump)]
-    pub payer_activity: Account<'info, Activity>,
+    #[account(init_if_needed, payer = from, space = 8 + Activity::INIT_SPACE, seeds = [b"activity", from.key().as_ref(), &activity_page(&from_profile)], bump)]
+    pub from_activity: Box<Account<'info, Activity>>,
+    #[account(init_if_needed, payer = from, space = 8 + Activity::INIT_SPACE, seeds = [b"activity", payer.as_ref(), &activity_page(&payer_profile)], bump)]
+    pub payer_activity: Box<Account<'info, Activity>>,
     pub system_program: Program<'info, System>,
 }
 
@@ -247,8 +269,9 @@ pub struct Request<'info> {
 pub struct Approve<'info> {
     pub payer: Signer<'info>,
     #[account(
-        mut, seeds = [b"entry", from.as_ref(), &operation], bump,
+        mut, seeds = [b"entry", from.as_ref(), &operation], bump = entry.bump,
         constraint = entry.to == payer.key() @ PayError::Unauthorized,
+        constraint = entry.kind == Kind::Request @ PayError::NotPending,
         constraint = entry.state == State::Pending @ PayError::NotPending,
     )]
     pub entry: Account<'info, Entry>,
@@ -267,8 +290,9 @@ pub struct Approve<'info> {
 pub struct Decline<'info> {
     pub payer: Signer<'info>,
     #[account(
-        mut, seeds = [b"entry", from.as_ref(), &operation], bump,
+        mut, seeds = [b"entry", from.as_ref(), &operation], bump = entry.bump,
         constraint = entry.to == payer.key() @ PayError::Unauthorized,
+        constraint = entry.kind == Kind::Request @ PayError::NotPending,
         constraint = entry.state == State::Pending @ PayError::NotPending,
     )]
     pub entry: Account<'info, Entry>,

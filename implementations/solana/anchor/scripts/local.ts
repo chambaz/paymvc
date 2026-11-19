@@ -34,9 +34,11 @@ const validator = spawn(
     "10000",
     "--dynamic-port-range",
     "10000-10050",
-    "--bpf-program",
+    // Loader v3 with no upgrade authority, like the finalized devnet program.
+    "--upgradeable-program",
     PAYMVC_PROGRAM_ADDRESS,
     "target/deploy/paymvc.so",
+    "none",
     "--quiet",
   ],
   { stdio: ["ignore", "ignore", "inherit"] },

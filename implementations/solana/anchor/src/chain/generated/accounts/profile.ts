@@ -23,6 +23,8 @@ import {
   getStructEncoder,
   getU64Decoder,
   getU64Encoder,
+  getU8Decoder,
+  getU8Encoder,
   transformEncoder,
   type Account,
   type Address,
@@ -54,12 +56,14 @@ export type Profile = {
   owner: Address;
   /** The number of activity records, and the index of the next one. */
   activityCount: bigint;
+  bump: number;
 };
 
 export type ProfileArgs = {
   owner: Address | HasAddress;
   /** The number of activity records, and the index of the next one. */
   activityCount: number | bigint;
+  bump: number;
 };
 
 /** Gets the encoder for {@link ProfileArgs} account data. */
@@ -69,6 +73,7 @@ export function getProfileEncoder(): FixedSizeEncoder<ProfileArgs> {
       ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
       ["owner", getAddressEncoder()],
       ["activityCount", getU64Encoder()],
+      ["bump", getU8Encoder()],
     ]),
     (value) => ({ ...value, discriminator: PROFILE_DISCRIMINATOR }),
   );
@@ -80,6 +85,7 @@ export function getProfileDecoder(): FixedSizeDecoder<Profile> {
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
     ["owner", getAddressDecoder()],
     ["activityCount", getU64Decoder()],
+    ["bump", getU8Decoder()],
   ]);
 }
 
@@ -158,5 +164,5 @@ export async function fetchAllMaybeProfile(
 }
 
 export function getProfileSize(): number {
-  return 48;
+  return 49;
 }

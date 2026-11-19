@@ -155,6 +155,8 @@ export function browserScenario(
       await pages[user].reload();
     },
     externalTransfer: async () => {
+      // Test-only: the driver copies B's session into Node to sign a token transfer outside
+      // PayMVC. The app itself never sends a key out of the browser.
       const s: Session = await pages.b.evaluate(
         (key) => JSON.parse(localStorage.getItem(key)!),
         deploymentKey(c),
