@@ -1,4 +1,4 @@
-import { spawnSync } from "node:child_process";
+import { spawn, type ChildProcess } from "node:child_process";
 import { randomBytes } from "node:crypto";
 import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -67,42 +67,68 @@ if (balance === 0n)
   );
 
 // Forge reads the key from an encrypted keystore and a password file, never from the
-// command line, which other local users can read. Both files are removed afterwards.
+// command line, which other local users can read. Both files are removed afterwards,
+// also after an interrupt: the handlers stop forge first, then cleanup runs.
 const secrets = resolve(".local", `forge-${process.pid}`);
-await mkdir(secrets, { mode: 0o700 });
-const password = randomBytes(32).toString("hex");
-await writeFile(resolve(secrets, "password"), password, { mode: 0o600 });
-await writeFile(
-  resolve(secrets, "keystore.json"),
-  JSON.stringify(keystore(key, password)),
-  { mode: 0o600 },
-);
-// Foundry saves the transactions before broadcast; `--resume` sends any that did not land.
-const forge = spawnSync(
-  "forge",
-  [
-    "script",
-    "script/Deploy.s.sol",
-    "--rpc-url",
-    endpoint,
-    "--broadcast",
-    // Gas comes from the network's own estimate, not Foundry's local EVM: forks can price state
-    // creation differently (Sepolia estimates 7x the local figure). 110% stays below the
-    // per-transaction gas cap.
-    "--skip-simulation",
-    "--gas-estimate-multiplier",
-    "110",
-    "--keystore",
+let forge: ChildProcess | undefined;
+let interrupted = false;
+const stop = (signal: NodeJS.Signals) => {
+  interrupted = true;
+  forge?.kill(signal);
+};
+process.on("SIGINT", stop);
+process.on("SIGTERM", stop);
+let status: number | null = null;
+try {
+  await mkdir(secrets, { mode: 0o700 });
+  const password = randomBytes(32).toString("hex");
+  await writeFile(resolve(secrets, "password"), password, { mode: 0o600 });
+  await writeFile(
     resolve(secrets, "keystore.json"),
-    "--password-file",
-    resolve(secrets, "password"),
-    ...(process.argv.includes("--resume") ? ["--resume"] : []),
-  ],
-  { stdio: "inherit" },
-);
-await rm(secrets, { recursive: true, force: true });
-if (forge.status !== 0)
-  throw new Error("forge script failed. Rerun with --resume to continue it.");
+    JSON.stringify(keystore(key, password)),
+    { mode: 0o600 },
+  );
+  if (!interrupted) {
+    // Foundry saves the transactions before broadcast; `--resume` sends any that did not land.
+    const child = spawn(
+      "forge",
+      [
+        "script",
+        "script/Deploy.s.sol",
+        "--rpc-url",
+        endpoint,
+        "--broadcast",
+        // Gas comes from the network's own estimate, not Foundry's local EVM: forks can price state
+        // creation differently (Sepolia estimates 7x the local figure). 110% stays below the
+        // per-transaction gas cap.
+        "--skip-simulation",
+        "--gas-estimate-multiplier",
+        "110",
+        "--keystore",
+        resolve(secrets, "keystore.json"),
+        "--password-file",
+        resolve(secrets, "password"),
+        ...(process.argv.includes("--resume") ? ["--resume"] : []),
+      ],
+      { stdio: "inherit" },
+    );
+    forge = child;
+    status = await new Promise<number | null>((done, failed) => {
+      child.on("error", failed);
+      child.on("close", done);
+    });
+  }
+} finally {
+  process.off("SIGINT", stop);
+  process.off("SIGTERM", stop);
+  await rm(secrets, { recursive: true, force: true });
+}
+if (status !== 0)
+  throw new Error(
+    interrupted
+      ? "Deployment interrupted. Rerun with --resume to continue it."
+      : "forge script failed. Rerun with --resume to continue it.",
+  );
 
 type Broadcast = {
   transactions: {

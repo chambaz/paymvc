@@ -1,5 +1,11 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { HttpRequestError, keccak256, parseTransaction, type Hex } from "viem";
+import {
+  HttpRequestError,
+  keccak256,
+  parseTransaction,
+  TransactionReceiptNotFoundError,
+  type Hex,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { newSession, type Session } from "../../src/chain/session";
 import { parseDeployment } from "../../src/chain/config";
@@ -42,6 +48,9 @@ const config = parseDeployment({
   faucetUrl: "https://example.com",
 });
 const NONCE = 5;
+/** What viem throws when a node has no receipt for a hash. */
+const noReceipt = () =>
+  new TransactionReceiptNotFoundError({ hash: `0x${"0".repeat(64)}` });
 let session: Session;
 let raw: Hex;
 let hash: Hex;
@@ -52,7 +61,7 @@ const success = (transactionHash: Hex = hash) => ({
 beforeEach(async () => {
   vi.resetAllMocks();
   mocks.pending.mockRejectedValue(new Error("Not found"));
-  mocks.receipt.mockRejectedValue(new Error("Not found"));
+  mocks.receipt.mockRejectedValue(noReceipt());
   mocks.count.mockResolvedValue(NONCE);
   mocks.block.mockResolvedValue({ baseFeePerGas: 1n });
   session = newSession(config);
@@ -83,7 +92,7 @@ it("stops before all RPC calls when saving evidence fails", async () => {
 it("retries the original signed bytes and reconciles a mined result", async () => {
   const persist = vi.fn();
   mocks.receipt
-    .mockRejectedValueOnce(new Error("Not found"))
+    .mockRejectedValueOnce(noReceipt())
     .mockResolvedValueOnce(success());
   mocks.broadcast.mockImplementation(async ({ serializedTransaction }) => {
     expect(persist).toHaveBeenCalled();
@@ -130,7 +139,7 @@ it("reports a failed broadcast promptly and retries the exact saved bytes", asyn
 
 it("accepts a confirmed receipt even if broadcast returned an error", async () => {
   mocks.receipt
-    .mockRejectedValueOnce(new Error("Not found"))
+    .mockRejectedValueOnce(noReceipt())
     .mockResolvedValueOnce(success());
   mocks.broadcast.mockRejectedValue(new Error("Already known"));
   await run();
@@ -179,9 +188,24 @@ it("keeps the saved bytes while the nonce is unused", async () => {
 it("keeps the saved bytes when a second check finds them mined", async () => {
   mocks.count.mockResolvedValue(NONCE + 1);
   mocks.receipt
-    .mockRejectedValueOnce(new Error("Not found"))
-    .mockRejectedValueOnce(new Error("Not found"))
+    .mockRejectedValueOnce(noReceipt())
+    .mockRejectedValueOnce(noReceipt())
     .mockResolvedValue(success());
+  await run();
+  expect(session.journal.send!.confirmed).toBe(true);
+  expect(mocks.broadcast).not.toHaveBeenCalled();
+});
+
+it("keeps a used-nonce transaction when receipt reads fail", async () => {
+  // The transaction was mined, so the nonce passed it, but the RPC rate-limits receipts.
+  mocks.count.mockResolvedValue(NONCE + 1);
+  mocks.receipt.mockRejectedValue(
+    new HttpRequestError({ url: config.rpcUrl, status: 429 }),
+  );
+  await expect(run()).rejects.toBeInstanceOf(UnknownOutcome);
+  expect(session.journal.send!.raw).toBe(raw);
+  // Once the receipt is readable, the same record confirms it.
+  mocks.receipt.mockResolvedValue(success());
   await run();
   expect(session.journal.send!.confirmed).toBe(true);
   expect(mocks.broadcast).not.toHaveBeenCalled();

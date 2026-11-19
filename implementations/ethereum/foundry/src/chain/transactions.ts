@@ -9,6 +9,7 @@ import {
   BaseError,
   HttpRequestError,
   InsufficientFundsError,
+  TransactionReceiptNotFoundError,
 } from "viem";
 import { chainFor, publicClient, type Deployment } from "./config";
 import { accountFor, type Session } from "./session";
@@ -108,11 +109,16 @@ async function settle(
   const client = publicClient(config);
   let record = saved;
   const versions = () => [record.hash, ...(record.earlier ?? [])];
+  // Only "not found" means no receipt. Any other read error proves nothing, so it
+  // propagates and the outcome stays unknown.
   const minedVersion = async () => {
     for (const hash of versions()) {
       const receipt = await client
         .getTransactionReceipt({ hash })
-        .catch(() => null);
+        .catch((error: unknown) => {
+          if (error instanceof TransactionReceiptNotFoundError) return null;
+          throw error;
+        });
       if (receipt) return receipt;
     }
     return null;
