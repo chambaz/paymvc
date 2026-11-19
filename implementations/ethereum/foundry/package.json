@@ -10,7 +10,7 @@
     "dev": "tsx scripts/dev.ts",
     "preview": "vite preview --host 127.0.0.1",
     "build": "tsc --noEmit && vite build",
-    "check": "tsc --noEmit && prettier --check . && forge fmt --check && tsx scripts/validate-manifest.ts",
+    "check": "tsc --noEmit && prettier --check . && forge fmt --check && forge build && tsx scripts/generate-abi.ts --check && tsx scripts/validate-manifest.ts",
     "format": "prettier --write . && forge fmt",
     "test": "forge test && vitest run",
     "test:e2e": "playwright test",

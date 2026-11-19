@@ -10,7 +10,7 @@ import {
   parseTransaction,
   type Address,
 } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
+import { generatePrivateKey, privateKeyToAccount } from "viem/accounts";
 import { foundry } from "viem/chains";
 import { readFile } from "node:fs/promises";
 import {
@@ -355,6 +355,26 @@ test("the reset confirmation keeps keyboard focus in place", async ({
   await expect(
     page.getByRole("button", { name: "Create demo wallet", exact: true }),
   ).toBeFocused();
+});
+
+test("a request to an unregistered address names the problem and keeps the form", async ({
+  page,
+}) => {
+  await start(page);
+  const stranger = privateKeyToAccount(generatePrivateKey()).address;
+  await page.getByRole("button", { name: "Request", exact: true }).click();
+  await select(page, stranger);
+  await page.getByLabel("Amount", { exact: true }).fill("5");
+  await page
+    .getByRole("button", { name: "Create request", exact: true })
+    .click();
+  await expect(page.getByRole("dialog").getByRole("alert")).toHaveText(
+    "Choose a different, registered PayMVC account.",
+  );
+  await expect(
+    page.getByLabel("Recipient address", { exact: true }),
+  ).toHaveValue(stranger);
+  await expect(page.getByLabel("Amount", { exact: true })).toBeEnabled();
 });
 
 test("delayed payment result reconciles without another broadcast", async ({

@@ -1,5 +1,6 @@
 import { spawnSync } from "node:child_process";
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
+import { mkdir, readFile, rm, writeFile } from "node:fs/promises";
 import { resolve } from "node:path";
 import {
   createPublicClient,
@@ -17,6 +18,7 @@ import {
   privateDirectory,
 } from "./network";
 import { paymvcAbi } from "../src/chain/generated/paymvcAbi";
+import { keystore } from "./keystore";
 
 // Foundry deploys: `forge script script/Deploy.s.sol --broadcast`. This file only selects the key,
 // runs that command, and writes the verified public deployment record from its broadcast output.
@@ -64,7 +66,17 @@ if (balance === 0n)
     "Fund the testnet deployer address above, then rerun. The key is stored locally and has not been printed.",
   );
 
-// The key is passed to forge only; it is never printed.
+// Forge reads the key from an encrypted keystore and a password file, never from the
+// command line, which other local users can read. Both files are removed afterwards.
+const secrets = resolve(".local", `forge-${process.pid}`);
+await mkdir(secrets, { mode: 0o700 });
+const password = randomBytes(32).toString("hex");
+await writeFile(resolve(secrets, "password"), password, { mode: 0o600 });
+await writeFile(
+  resolve(secrets, "keystore.json"),
+  JSON.stringify(keystore(key, password)),
+  { mode: 0o600 },
+);
 // Foundry saves the transactions before broadcast; `--resume` sends any that did not land.
 const forge = spawnSync(
   "forge",
@@ -80,12 +92,15 @@ const forge = spawnSync(
     "--skip-simulation",
     "--gas-estimate-multiplier",
     "110",
-    "--private-key",
-    key,
+    "--keystore",
+    resolve(secrets, "keystore.json"),
+    "--password-file",
+    resolve(secrets, "password"),
     ...(process.argv.includes("--resume") ? ["--resume"] : []),
   ],
   { stdio: "inherit" },
 );
+await rm(secrets, { recursive: true, force: true });
 if (forge.status !== 0)
   throw new Error("forge script failed. Rerun with --resume to continue it.");
 
