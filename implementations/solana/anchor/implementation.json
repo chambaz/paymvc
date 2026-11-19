@@ -19,13 +19,13 @@
   "funding": "Create one wallet, manually fund its devnet SOL budget, then Start demo. Budget includes account rent and fees. Faucet may require sign-in and enforce limits.",
   "history": "Permanent operation accounts and numbered per-profile activity PDAs. Request resolution updates the original entry. SPL Token accounts supply actual balances.",
   "confirmation": "Confirmed signature plus expected program state. Signed bytes are saved before broadcast. Retry the same signature until finalized block-height expiry and a history lookup prove it absent; then require explicit retry. Confirmed is not finalized.",
-  "hostedUrl": null,
+  "hostedUrl": "https://solana.paymvc.com",
   "toolchains": {
     "anchor": "1.2.2",
     "solana": "4.1.2",
     "platform-tools": "v1.57",
     "rust": "1.98.1",
     "kit": "8.6.0",
-    "node": "24+"
+    "node": "24.21.0"
   }
 }

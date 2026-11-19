@@ -2,7 +2,7 @@
 
 A standalone payments demo with Solidity, React, TypeScript, and Viem. Ethereum, Base, Monad, and Robinhood share this implementation. Each user controls one disposable wallet. Addresses are the only identity. Credits use a zero-decimal OpenZeppelin ERC-20; fees use the selected network's native token.
 
-## Run
+## 1. Run
 
 Requirements: Node 24+, npm, and Foundry 1.7.1. Run commands from this directory.
 
@@ -33,7 +33,7 @@ One production build contains all four public deployment records. `?network=base
 
 The dropdown links all nine networks. The local default ports are: Ethereum 5173, Solana 5175, Base 5177, Monad 5179, Stellar 5181, Sui 5183, Aptos 5185, Robinhood 5187, and Thruput 5189. Start each frontend that you want to reach; all EVM frontends run from this folder. `VITE_ETHEREUM_URL`, `VITE_BASE_URL`, `VITE_MONAD_URL`, and `VITE_ROBINHOOD_URL` point the dropdown at hosted sites instead, either one subdomain per network (as paymvc.com does) or one origin with the matching `?network=` parameter. Equivalent URL settings exist for the other implementations. `VITE_LANDING_URL` sets the logo link to the landing page (default <http://127.0.0.1:5170>).
 
-## Architecture
+## 2. Architecture
 
 | Path                        | Responsibility                                                   |
 | --------------------------- | ---------------------------------------------------------------- |
@@ -81,7 +81,7 @@ An entry's key is its creator and operation ID: `entries[from][operation]`. Ther
 - **`entry` reverts with `NotFound`.** Solidity has no `Option` type. The client treats that revert as "no entry".
 - **`uint256` amounts.** This is the ERC-20 amount type. The contract still accepts only 1 to 1,000,000.
 
-## Token model
+## 3. Token model
 
 Credits are a standard ERC-20 token, built on the OpenZeppelin ERC-20 contract with zero decimals. ERC-20 is the standard fungible token interface on EVM chains, so wallets, explorers, and other contracts can read and transfer credits without PayMVC code. Amounts are exact integers; the frontend never derives a balance from activity.
 
@@ -89,13 +89,13 @@ Only the PayMVC contract can mint `DemoCredits`. It allocates 100 credits once, 
 
 `DemoCredits` also implements EIP-2612 permits (OpenZeppelin `ERC20Permit`). Before it builds a send or an approval, the browser signs a permit with the session key: owner, PayMVC as spender, the exact amount, the token's current nonce, and the maximum deadline, because EVM transactions do not expire. `send` and `approve` call `token.permit` and then `transferFrom` from the caller only. A permit that is already used, for example because someone copied it from a pending transaction and submitted it first, does not stop the payment: PayMVC ignores the failed `permit` call and uses the allowance that the permit set. Without a matching permit or allowance, the payment reverts and nothing changes. Decline needs no permit and no credits.
 
-## Funding
+## 4. Funding
 
 Wallet creation saves one key before transactions start. The suggested reserve is the greater of the network's funding minimum and the current maximum fee per gas multiplied by the network's funding gas. The funding gas covers registration and the four payments of the shared scenario, with a margin: 5,000,000 gas on Sepolia, which prices new storage far higher (a request uses about 1.25M gas), and 1,500,000 gas on the other networks and on Anvil. Monad charges the gas limit, not the gas used. The funding minimum is 0.00005 ETH on Base Sepolia and 0.0005 of the native token on the other networks and on Anvil. Each network defines these values in `src/networks/index.ts`. Registration and later payments consume this reserve. Faucets may require sign-in or impose eligibility rules.
 
 Keys and signed transaction evidence stay in browser local storage. Browser storage and Web Locks are scoped by chain, contract, and code hash. Switching back restores that network's wallet and journal on the same origin. A new hostname or port has separate browser storage. Sessions from earlier contract versions are not migrated.
 
-## Confirmation and recovery
+## 5. Confirmation and recovery
 
 Web Locks permits one writer tab. Refresh restores the same wallet and journal. Reset removes local access; it cannot cancel transactions or remove chain state.
 
@@ -107,7 +107,7 @@ Setup makes one automatic recheck after five seconds for a receipt timeout or de
 
 Robinhood is an Arbitrum Nitro L2. Standard gas estimation includes its execution and L1 data costs. PayMVC uses the same successful-receipt threshold as other EVM networks; this is a sequencer confirmation, not Ethereum finality. Recovery rechecks original receipts. The contracts do not depend on `block.number`, randomness opcodes, or L1 address aliasing. See Robinhood's [EVM differences](https://docs.robinhood.com/chain/differences-from-ethereum/), [fees](https://docs.robinhood.com/chain/gas-and-fees/), and [finality](https://docs.robinhood.com/chain/transaction-finality/).
 
-## Deploy
+## 6. Deploy
 
 Foundry deploys the contracts. The same script deploys to every network and to Anvil:
 
@@ -126,7 +126,7 @@ Forge estimates gas with the network's RPC (`--skip-simulation`) and adds 10%. I
 
 Run `npm run build` after deployment changes.
 
-## Verification
+## 7. Verification
 
 ### Commands
 
@@ -168,7 +168,7 @@ To test the live commands locally, start `npm run local`, then run `LOCAL=1 npm 
 
 `LIVE_RUN` selects a fresh named run with new users. `LIVE_PORT` selects another preview port for the browser command. `LIVE_RPC_URL` overrides the RPC for funding and browser requests without changing deployment files or the production build; pass private provider URLs through the environment only. Private sessions and journals stay under `.local`. Evidence never contains keys, signed transactions, browser profiles, or traces.
 
-## References
+## 8. References
 
 - [Viem local wallet clients](https://viem.sh/docs/clients/wallet)
 - [Transaction signing](https://viem.sh/docs/actions/wallet/prepareTransactionRequest)

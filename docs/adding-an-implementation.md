@@ -77,7 +77,24 @@ Follow [transaction recovery](recovery.md). Save each signed transaction before 
 
 ### 5. Add the chain to the selector
 
-Every implementation's selector lists all implementations. Add yours to the list in `src/components/payments-view.tsx`, give it a local port, and copy the changed file to every implementation.
+Every implementation's selector lists all implementations. Add yours to the `implementations` list in `src/components/payments-view.tsx`, with a `VITE_<CHAIN>_URL` variable and a local port, and copy the changed file to every implementation. Use the next free ports from this table: one for `npm run dev`, and the next one for the browser tests.
+
+| Implementation        | `npm run dev` | Browser tests |
+| --------------------- | ------------- | ------------- |
+| Landing page (`web/`) | 5170          |               |
+| Ethereum              | 5173          | 5174          |
+| Solana                | 5175          | 5176          |
+| Base                  | 5177          |               |
+| Monad                 | 5179          |               |
+| Stellar               | 5181          | 5182          |
+| Sui                   | 5183          | 5184          |
+| Aptos                 | 5185          | 5186          |
+| Robinhood             | 5187          |               |
+| Thruput               | 5189          | 5190          |
+| EVM network tests     |               | 5191          |
+| EVM visual tests      |               | 5199          |
+
+The four EVM networks share one browser test port.
 
 ### 6. Test
 
@@ -91,6 +108,15 @@ Every implementation's selector lists all implementations. Add yours to the list
 Run the live tests on the public testnet and commit the evidence file. See [testing](testing.md#evidence).
 
 ### 8. Document
+
+Add the implementation to each place that lists the implementations:
+
+- the tables in `README.md` and `docs/README.md`
+- the three tables in `docs/comparison.md` and its native differences
+- the per-chain table in `docs/recovery.md`
+- the native differences table in `docs/contract-interface.md`
+- the selector order in `docs/ui.md`
+- the network list in `web/src/main.tsx`, with a monochrome icon in `web/src/assets/networks/` and its source in `web/src/assets/README.md`
 
 Write a README with these sections:
 
@@ -118,7 +144,8 @@ Copy an existing workflow in `.github/workflows/` and change the folder, the `pa
 - [ ] Signed transactions are saved before broadcast, and recovery follows [transaction recovery](recovery.md).
 - [ ] No key appears in logs, URLs, APIs, commits, or test artifacts.
 - [ ] The token model uses the chain's standard token with zero decimals, or the README explains why not.
-- [ ] The selector lists the new implementation in every implementation.
+- [ ] The selector lists the new implementation in every implementation, with a free port.
+- [ ] The README tables, the docs tables, and the landing page list the new implementation.
 - [ ] Browser tests pass at desktop and mobile sizes, in light and dark mode.
 - [ ] The shared scenario passes on the public testnet, and the evidence file is committed.
 - [ ] The README has the standard sections and documents each native difference.
