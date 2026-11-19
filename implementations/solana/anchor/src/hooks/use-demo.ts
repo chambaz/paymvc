@@ -165,6 +165,8 @@ export function useDemo(config: Deployment) {
     if (!writer || running.current) return false;
     running.current = true;
     setBusy(true);
+    // Progress text belongs to one operation, so a new attempt starts without it.
+    setMessage("");
     setError("");
     setUnknown(false);
     try {
@@ -172,6 +174,7 @@ export function useDemo(config: Deployment) {
       await cache.invalidateQueries({ queryKey: ["dashboard", key] });
       return true;
     } catch (error) {
+      setMessage("");
       setError(readableError(error));
       setUnknown(unresolved(error));
       return false;

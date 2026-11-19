@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   ArrowDownLeftIcon,
   ArrowUpRightIcon,
@@ -157,6 +157,14 @@ export function PaymentsView(props: ViewProps) {
     onRetry: props.onRetry,
     onDismiss: props.onDismiss,
   };
+  // A reset removes the dialog's trigger, so focus moves to the next step.
+  const createButton = useRef<HTMLButtonElement>(null);
+  const resetting = useRef(false);
+  useEffect(() => {
+    if (!resetting.current || !createButton.current) return;
+    resetting.current = false;
+    createButton.current.focus();
+  });
   // The dialog and the request rows show their own progress and errors.
   const elsewhere = Boolean(activeRequest || mode);
   function open(next: PaymentMode, address = "") {
@@ -232,6 +240,7 @@ export function PaymentsView(props: ViewProps) {
                 >
                   <FieldGroup>
                     <Button
+                      ref={createButton}
                       type="submit"
                       disabled={props.busy || props.readOnly}
                     >
@@ -290,7 +299,8 @@ export function PaymentsView(props: ViewProps) {
               {...recovery}
               message={
                 !elsewhere && props.busy
-                  ? props.message || "Checking your saved operation…"
+                  ? props.message ||
+                    (props.pending ? "Checking your saved operation…" : "")
                   : ""
               }
               error={elsewhere ? "" : props.error}
@@ -444,6 +454,7 @@ export function PaymentsView(props: ViewProps) {
                   <Button
                     variant="link"
                     disabled={props.loadingMore}
+                    aria-live="polite"
                     aria-busy={props.loadingMore}
                     onClick={props.onMore}
                   >
@@ -479,11 +490,15 @@ export function PaymentsView(props: ViewProps) {
                           disabled={disabled}
                           onSelect={() => open("send", row.address)}
                         />
-                        {row.id === activeRequest ? (
-                          <Feedback
-                            {...recovery}
-                            message={
-                              props.busy
+                        {/* Mounted for every row, so that its first progress text is announced. */}
+                        <Feedback
+                          {...recovery}
+                          error={row.id === activeRequest ? props.error : ""}
+                          pending={row.id === activeRequest && props.pending}
+                          message={
+                            row.id !== activeRequest
+                              ? ""
+                              : props.busy
                                 ? props.message ||
                                   "Updating this request. Please wait…"
                                 : row.state === "Paid"
@@ -491,9 +506,8 @@ export function PaymentsView(props: ViewProps) {
                                   : row.state === "Declined"
                                     ? "Request declined."
                                     : ""
-                            }
-                          />
-                        ) : null}
+                          }
+                        />
                         {row.state !== "Pending" ? null : !row.incoming ? (
                           <div className="flex gap-3">
                             <Button
@@ -532,7 +546,10 @@ export function PaymentsView(props: ViewProps) {
           <footer className="mt-8 flex flex-wrap items-center justify-between gap-4 border-t pt-3 text-base text-muted-foreground sm:text-sm">
             <ResetDialog
               disabled={props.busy || props.readOnly}
-              onReset={props.onReset}
+              onReset={() => {
+                resetting.current = true;
+                props.onReset();
+              }}
             />
           </footer>
         ) : null}

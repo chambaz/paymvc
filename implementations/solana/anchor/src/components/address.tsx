@@ -28,6 +28,7 @@ export function CopyAddress({
       setCopied(true);
       setFailed(false);
     } catch {
+      setCopied(false);
       setFailed(true);
     }
   }

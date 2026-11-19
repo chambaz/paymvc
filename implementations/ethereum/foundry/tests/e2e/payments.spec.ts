@@ -337,7 +337,7 @@ test("unreadable browser storage stops before a wallet is created", async ({
   ).toHaveCount(0);
 });
 
-test("closing the reset confirmation returns focus to Reset Demo", async ({
+test("the reset confirmation keeps keyboard focus in place", async ({
   page,
 }) => {
   await create(page);
@@ -347,6 +347,14 @@ test("closing the reset confirmation returns focus to Reset Demo", async ({
   await page.getByRole("button", { name: "Keep demo", exact: true }).click();
   await expect(reset).toBeFocused();
   await expect(page.getByTestId("funding-address")).toBeVisible();
+  // A confirmed reset removes Reset Demo, so focus moves to the next step.
+  await page.keyboard.press("Enter");
+  await page
+    .getByRole("button", { name: "Reset and remove wallet", exact: true })
+    .click();
+  await expect(
+    page.getByRole("button", { name: "Create demo wallet", exact: true }),
+  ).toBeFocused();
 });
 
 test("delayed payment result reconciles without another broadcast", async ({

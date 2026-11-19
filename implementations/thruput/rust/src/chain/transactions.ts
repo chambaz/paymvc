@@ -48,6 +48,8 @@ export class ExpiredTransaction extends Error {
   }
 }
 
+export type Progress = (message: string) => void;
+
 /**
  * Sign, save, broadcast, and confirm one transaction for `label`. The
  * wallet runs `calls` in order as one atomic batch.
@@ -57,8 +59,6 @@ export class ExpiredTransaction extends Error {
  * showing that the operation did not happen. Only then can a later call sign
  * a new transaction.
  */
-export type Progress = (message: string) => void;
-
 export async function transact(
   c: Deployment,
   s: Session,

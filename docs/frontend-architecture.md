@@ -65,7 +65,7 @@ Every chain uses the same first five arguments, then its own:
 transact(config, session, persist, progress, label, ...chainArguments);
 ```
 
-`label` names the journal record. The label of every record for a payment operation starts with its operation ID, so the shared hook can find and remove them. `transact` reports two progress messages: `Preparing transaction` before it signs, and `Waiting for confirmation` after it saves the signed transaction.
+`label` names the journal record. The label of every record for a payment operation starts with its operation ID, so the shared hook can find and remove them. Every `transact` reports at least two progress messages: `Preparing transaction` before it signs, and `Waiting for confirmation` after it saves the signed transaction. A chain can add others, such as Thruput's `Checking the original transaction` when it reconciles a saved transaction.
 
 ## Session
 

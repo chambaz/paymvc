@@ -327,7 +327,8 @@ export function payments(
         s,
         persist,
         progress,
-        label, // transact builds only when no saved transaction exists. A retry
+        label,
+        // transact builds only when no saved transaction exists. A retry
         // reconciles the saved transaction and skips this balance check.
         async (ledger) => {
           if (

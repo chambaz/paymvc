@@ -23,7 +23,9 @@ export function Feedback(props: FeedbackProps) {
     (props.pending && !props.busy
       ? props.unknown
         ? "The network has not confirmed your last operation. Recheck it before you start another. It will not be sent twice."
-        : "Your last operation is unresolved. Recheck it, or dismiss it to continue."
+        : props.readOnly
+          ? "Your last operation is unresolved. Recheck or dismiss it in the tab that owns this demo."
+          : "Your last operation is unresolved. Recheck it, or dismiss it to continue."
       : "");
   const visible = Boolean(
     props.message || props.stale || props.readOnly || problem,
@@ -47,24 +49,32 @@ export function Feedback(props: FeedbackProps) {
         ) : null}
         {props.message}
       </p>
-      {props.stale ? (
-        <Alert role="status">
-          <AlertTitle>Balance may be out of date</AlertTitle>
-          <AlertDescription>
-            The latest read failed. Your previous balance is retained. Refresh
-            to check again.
-          </AlertDescription>
-        </Alert>
-      ) : null}
-      {props.readOnly ? (
-        <Alert role="status">
-          <AlertTitle>Read-only tab</AlertTitle>
-          <AlertDescription>
-            Another tab owns this demo, or browser locking is unavailable. Close
-            the other tab and reload to make payments here.
-          </AlertDescription>
-        </Alert>
-      ) : null}
+      {/* Notices also live in a region that is always mounted. */}
+      <div
+        role="status"
+        className={
+          props.stale || props.readOnly ? "flex flex-col gap-3" : "sr-only"
+        }
+      >
+        {props.stale ? (
+          <Alert role="none">
+            <AlertTitle>Balance may be out of date</AlertTitle>
+            <AlertDescription>
+              The latest read failed. Your previous balance is retained. Refresh
+              to check again.
+            </AlertDescription>
+          </Alert>
+        ) : null}
+        {props.readOnly ? (
+          <Alert role="none">
+            <AlertTitle>Read-only tab</AlertTitle>
+            <AlertDescription>
+              Another tab owns this demo, or browser locking is unavailable.
+              Close the other tab and reload to make payments here.
+            </AlertDescription>
+          </Alert>
+        ) : null}
+      </div>
       {problem ? (
         <Alert variant="destructive">
           <AlertTitle>
