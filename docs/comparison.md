@@ -39,7 +39,7 @@ To read one implementation, start with `src/app.tsx`, follow `src/hooks/use-demo
 
 ## Deployment changes
 
-Each implementation verifies its network and deployment before setup and before each write.
+Each implementation verifies its network and deployment before its first write. Most cache the result for the page load, because the deployed contracts cannot change.
 
 | Chain   | Checks                                                                                   | Upgradeable |
 | ------- | ---------------------------------------------------------------------------------------- | ----------- |

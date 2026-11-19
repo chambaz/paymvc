@@ -141,6 +141,13 @@ it("requires finalized expiry and a second history lookup before explicit retry"
   expect(session.journal.send).toBeUndefined();
   expect(mocks.broadcast).not.toHaveBeenCalled();
 });
+it("never proves expiry from a node behind the finalized slot", async () => {
+  // The node answers "not found" from slot 120, but slot 150 is finalized.
+  mocks.status.mockResolvedValue({ context: { slot: 120n }, value: [null] });
+  mocks.height.mockResolvedValue(101n);
+  await expect(run()).rejects.toBeInstanceOf(UnknownOutcome);
+  expect(session.journal.send).toBeDefined();
+});
 it("never discards a previously confirmed transaction when history is unavailable", async () => {
   session.journal.send!.confirmed = true;
   mocks.status

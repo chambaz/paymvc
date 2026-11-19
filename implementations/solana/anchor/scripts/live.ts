@@ -47,21 +47,27 @@ type User = Awaited<ReturnType<typeof user>>;
 
 /**
  * Record the confirmed signature of a journal entry in scenario order. A rerun can find the
- * step already done with no journal record; then the newest successful transaction that
- * wrote `account` is the step's signature.
+ * step already done with no journal record. Then `entry`, the step's entry account, gives
+ * the signature: only its creation and its resolution write it, so a send or request is
+ * the oldest successful transaction there, and an approve or decline is the second.
  */
 async function record(
   user: User,
   step: string,
   journal: string,
-  account?: Address,
+  entry?: { account: Address; resolution: boolean },
 ) {
   let hash = user.session.journal[journal]?.hash;
-  if (!hash && account) {
+  if (!hash && entry) {
     const history = await rpc(c)
-      .getSignaturesForAddress(account, { limit: 10, commitment: "confirmed" })
+      .getSignaturesForAddress(entry.account, {
+        limit: 10,
+        commitment: "confirmed",
+      })
       .send();
-    hash = history.find((item) => !item.err)?.signature;
+    // Newest first, so the oldest transaction is last.
+    const writes = history.filter((item) => !item.err).reverse();
+    hash = writes[entry.resolution ? 1 : 0]?.signature;
   }
   if (!hash) throw new Error(`No transaction found for ${step}.`);
   transactions.push({ step: `${user.label}:${step}`, hash });
@@ -89,12 +95,12 @@ async function execute(
     id,
     operation,
   });
-  await record(
-    user,
-    `${action} ${amount}`,
-    operation,
-    id ? (id as Address) : await entryAddress(c, user.address, operation),
-  );
+  await record(user, `${action} ${amount}`, operation, {
+    account: id
+      ? (id as Address)
+      : await entryAddress(c, user.address, operation),
+    resolution: Boolean(id),
+  });
 }
 async function request(
   requester: User,
@@ -128,12 +134,8 @@ try {
       decimals: 0,
     }),
   ]);
-  await record(
-    b,
-    "external transfer 3",
-    "external",
-    await tokenAddress(c, b.address),
-  );
+  // The external transfer keeps its journal record, so it needs no fallback.
+  await record(b, "external transfer 3", "external");
 } catch (error) {
   failure = error;
 }

@@ -69,7 +69,8 @@ const verified = new Set<string>();
  * mint. A program with an upgrade authority could change under existing sessions.
  */
 export async function verifyDeployment(c: Deployment) {
-  if (verified.has(c.program)) return;
+  const id = `${c.genesisHash}:${c.program}`;
+  if (verified.has(id)) return;
   const client = rpc(c);
   if ((await client.getGenesisHash().send()) !== c.genesisHash)
     throw new Error(
@@ -90,7 +91,12 @@ export async function verifyDeployment(c: Deployment) {
   if (getU32Decoder().decode(programBytes) !== 2) throw fail();
   const programData = getAddressDecoder().decode(programBytes, 4);
   const data = await client
-    .getAccountInfo(programData, { encoding: "base64", commitment })
+    // Only the header is needed, not the program bytes.
+    .getAccountInfo(programData, {
+      encoding: "base64",
+      commitment,
+      dataSlice: { offset: 0, length: 45 },
+    })
     .send();
   // `ProgramData { slot, upgrade_authority_address: Option<Pubkey> }`: byte 12 is the option
   // tag. `solana program deploy --final` stores None. A local validator's "none" stores the
@@ -116,7 +122,7 @@ export async function verifyDeployment(c: Deployment) {
     isSome(mint.data.freezeAuthority)
   )
     throw fail();
-  verified.add(c.program);
+  verified.add(id);
 }
 export const profileAddress = (c: Deployment, owner: Address) =>
   pda(c, "profile", addressBytes.encode(owner));
@@ -191,6 +197,21 @@ const pending = (): never => {
   throw new ResultPending();
 };
 
+/**
+ * A new attempt can land after an earlier one that a lagging RPC did not show. It then
+ * fails on chain because the earlier attempt already made the change. Reads state from
+ * the failure's slot on and returns true when `done` finds the expected effect there.
+ * A node that cannot serve that slot leaves the result pending.
+ */
+export async function landedEarlier<T>(
+  error: unknown,
+  read: (minContextSlot: bigint) => Promise<T>,
+  done: (state: T) => boolean,
+) {
+  if (!(error instanceof RevertedTransaction) || !error.slot) return false;
+  return done(await read(error.slot).catch(pending));
+}
+
 export function payments(
   c: Deployment,
   s: Session,
@@ -201,9 +222,11 @@ export function payments(
   const program = { programAddress: c.program };
   /** Fails before signing when the wallet cannot pay the fee and the new accounts' rent. */
   async function requireLamports(owner: Address, sizes: number[]) {
+    // A system account must end a transaction empty or rent-exempt, so the payer also
+    // keeps the minimum for a zero-byte account.
     const [{ value: balance }, ...rents] = await Promise.all([
       client.getBalance(owner, { commitment }).send(),
-      ...sizes.map((size) =>
+      ...[0, ...sizes].map((size) =>
         client.getMinimumBalanceForRentExemption(BigInt(size)).send(),
       ),
     ]);
@@ -356,12 +379,12 @@ export function payments(
           },
         );
       } catch (error) {
-        // A new attempt can land after an earlier one that a lagging RPC did not show.
-        // It then fails because the entry exists. Read the entry from that slot on.
-        if (!(error instanceof RevertedTransaction) || !error.slot) throw error;
-        const landed = await read(error.slot);
-        if (!landed.exists) throw error;
-        verify(landed);
+        const earlier = await landedEarlier(error, read, (landed) => {
+          if (!landed.exists) return false;
+          verify(landed);
+          return true;
+        });
+        if (!earlier) throw error;
         return;
       }
       // A node behind the confirmation slot refuses the read. Recheck it later.
@@ -428,9 +451,12 @@ export function payments(
           );
         } catch (error) {
           // As for a payment: an earlier attempt may have resolved the request already.
-          if (!(error instanceof RevertedTransaction) || !error.slot)
-            throw error;
-          if ((await read(error.slot)).data.state !== expected) throw error;
+          const earlier = await landedEarlier(
+            error,
+            read,
+            (entry) => entry.data.state === expected,
+          );
+          if (!earlier) throw error;
           return;
         }
       }
