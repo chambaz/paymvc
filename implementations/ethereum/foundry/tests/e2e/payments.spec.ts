@@ -13,7 +13,11 @@ import {
 import { privateKeyToAccount } from "viem/accounts";
 import { foundry } from "viem/chains";
 import { readFile } from "node:fs/promises";
-import { parseDeployment, publicClient } from "../../src/chain/config";
+import {
+  deploymentKey,
+  parseDeployment,
+  publicClient,
+} from "../../src/chain/config";
 import { paymvcAbi } from "../../src/chain/generated/paymvcAbi";
 import {
   accountFor,
@@ -504,10 +508,19 @@ test("storage writes from another tab do not replace a running operation", async
   const second = await context.newPage();
   await second.goto("/");
   await expect(second.getByText("Read-only tab")).toBeVisible();
+  const before = await page.evaluate(
+    (key) => localStorage.getItem(key)!,
+    deploymentKey(config),
+  );
   await page.route(config.rpcUrl, async (route) => {
     if (route.request().postDataJSON().method === "eth_sendRawTransaction") {
       // The theme is saved in the same origin's storage, so this tab receives a storage event.
       await second.getByRole("button", { name: "Dark mode" }).click();
+      // Another tab writes an older copy of this session. The running operation keeps its own.
+      await second.evaluate(
+        ([key, value]) => localStorage.setItem(key, value),
+        [deploymentKey(config), before] as const,
+      );
       await page.waitForTimeout(250);
     }
     await route.continue();
