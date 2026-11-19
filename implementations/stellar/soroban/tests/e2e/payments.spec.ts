@@ -313,7 +313,7 @@ test("a check that fails before signing keeps the form editable", async ({
     .click();
   // Simulation refuses the overspend before anything is signed.
   await expect(dialog.getByRole("alert")).toContainText(
-    "could not prepare this step",
+    "Not enough demo credits",
   );
   await expect(dialog.getByLabel("Amount", { exact: true })).toHaveValue("101");
   // Nothing was signed, so the form stays editable and the next attempt succeeds.
