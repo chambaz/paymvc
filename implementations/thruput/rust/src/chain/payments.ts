@@ -13,6 +13,7 @@ import {
   clientFor,
   formatNative,
   normalizeAddress,
+  type Client,
   type Deployment,
   waitForHeight,
 } from "./config";
@@ -64,7 +65,27 @@ function parseEntryId(id: string) {
  * uses, and the token's zero decimals. Futurenet can reset, so this runs
  * before every read and write.
  */
-export async function verifyDeployment(c: Deployment) {
+/** Verifications in this page, by deployment. The contracts cannot change. */
+const verified = new Map<string, Promise<Client>>();
+
+/**
+ * Checks the network, both contract code hashes, the token that PayMVC binds, and its
+ * zero decimals, once per page load. A failed check is retried on the next call.
+ */
+export function verifyDeployment(c: Deployment) {
+  const id = `${c.networkHash}:${c.address}:${c.rpcUrl}`;
+  let check = verified.get(id);
+  if (!check) {
+    check = checkDeployment(c).catch((error: unknown) => {
+      verified.delete(id);
+      throw error;
+    });
+    verified.set(id, check);
+  }
+  return check;
+}
+
+async function checkDeployment(c: Deployment) {
   const client = await clientFor(c);
   const address = addressFromBase58(c.address);
   const credits = addressFromBase58(c.credits);
@@ -305,6 +326,24 @@ export function payments(
             }),
           )
         ).value;
+      const label = `${intent.operation}:${intent.action}`;
+      // A payment needs the credits before it is signed. A saved transaction is
+      // reconciled instead, whatever the current balance is.
+      if (
+        (intent.action === "send" || intent.action === "approve") &&
+        !s.journal[label]
+      ) {
+        const { value: balance } = await waitForHeight(() =>
+          token.getBalanceOf.view({
+            client,
+            address: credits,
+            args: { addr: owner },
+            minStateBlockHeight: confirmedHeight(s),
+          }),
+        );
+        if (balance < amount)
+          throw new Error("Not enough demo credits. No payment was completed.");
+      }
       // A send or request is absent while its key has no entry. An approval
       // or decline is absent while the request is still pending.
       await transact(
@@ -312,7 +351,7 @@ export function payments(
         s,
         persist,
         progress,
-        `${intent.operation}:${intent.action}`,
+        label,
         client,
         calls,
         async (height) => {

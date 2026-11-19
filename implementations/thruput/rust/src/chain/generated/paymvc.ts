@@ -41,6 +41,37 @@ export namespace paymvc {
       export type PaymentError = 1n | 2n | 3n | 4n | 5n | 6n | 7n | 8n | 9n | 10n;
 
       export type State = 0n | 1n | 2n;
+
+      export interface Created extends __gh_client_contract.DecodedContractEvent<
+        "Created",
+        { "from": __gh_protocol.ContractAddress; "to": __gh_protocol.ContractAddress },
+        { "operation": __gh_client_contract.FixedBytes<32>; "amount": bigint; "kind": __gh_codegen.paymvc$v0_1$implementation$Kind }
+      > {}
+
+      export interface CreatedFilter {
+        "from"?: __gh_client_contract.ContractEventFilterValue<__gh_protocol.ContractAddress>;
+        "to"?: __gh_client_contract.ContractEventFilterValue<__gh_protocol.ContractAddress>;
+      }
+
+      export interface Registered extends __gh_client_contract.DecodedContractEvent<
+        "Registered",
+        { "account": __gh_protocol.ContractAddress },
+        {  }
+      > {}
+
+      export interface RegisteredFilter {
+        "account"?: __gh_client_contract.ContractEventFilterValue<__gh_protocol.ContractAddress>;
+      }
+
+      export interface Resolved extends __gh_client_contract.DecodedContractEvent<
+        "Resolved",
+        { "from": __gh_protocol.ContractAddress },
+        { "operation": __gh_client_contract.FixedBytes<32>; "state": __gh_codegen.paymvc$v0_1$implementation$State }
+      > {}
+
+      export interface ResolvedFilter {
+        "from"?: __gh_client_contract.ContractEventFilterValue<__gh_protocol.ContractAddress>;
+      }
     }
   }
 }
@@ -308,6 +339,39 @@ export const spec: __gh_client_contract.ContractSpec = {
     },
   ],
   events: [
+    {
+      name: { crate_name: __gh_s("paymvc"), major: __gh_s("0.1"), module_path: __gh_s("paymvc::implementation"), declared: __gh_s("Created") },
+      signature: __gh_protocol.topic(__gh_protocol_utils.fromHex("eabc2965977f5e9c28a8c902f99c5ca872cdbed0671a4dcda939d6ffafff8b6c")),
+      topics: [
+        { name: __gh_s("from"), ty: { v: __gh_contract_spec.ContractTypeKind.Address } },
+        { name: __gh_s("to"), ty: { v: __gh_contract_spec.ContractTypeKind.Address } },
+      ],
+      fields: [
+        { name: __gh_s("operation"), ty: { v: __gh_contract_spec.ContractTypeKind.Array, array: { element: { v: __gh_contract_spec.ContractTypeKind.U8 }, len: 32n } } },
+        { name: __gh_s("amount"), ty: { v: __gh_contract_spec.ContractTypeKind.I128 } },
+        { name: __gh_s("kind"), ty: { v: __gh_contract_spec.ContractTypeKind.Named, named: { crate_name: __gh_s("paymvc"), major: __gh_s("0.1"), module_path: __gh_s("paymvc::implementation"), declared: __gh_s("Kind") } } },
+      ],
+    },
+    {
+      name: { crate_name: __gh_s("paymvc"), major: __gh_s("0.1"), module_path: __gh_s("paymvc::implementation"), declared: __gh_s("Registered") },
+      signature: __gh_protocol.topic(__gh_protocol_utils.fromHex("7a1899401189dfd495cb0f0889a6ce075e99d249a95317e005ef2e0cfc1f2c02")),
+      topics: [
+        { name: __gh_s("account"), ty: { v: __gh_contract_spec.ContractTypeKind.Address } },
+      ],
+      fields: [
+      ],
+    },
+    {
+      name: { crate_name: __gh_s("paymvc"), major: __gh_s("0.1"), module_path: __gh_s("paymvc::implementation"), declared: __gh_s("Resolved") },
+      signature: __gh_protocol.topic(__gh_protocol_utils.fromHex("1e9141b29b843ee4374c5796ae4745597c34b7475dcb38bfeab999cb06b255fe")),
+      topics: [
+        { name: __gh_s("from"), ty: { v: __gh_contract_spec.ContractTypeKind.Address } },
+      ],
+      fields: [
+        { name: __gh_s("operation"), ty: { v: __gh_contract_spec.ContractTypeKind.Array, array: { element: { v: __gh_contract_spec.ContractTypeKind.U8 }, len: 32n } } },
+        { name: __gh_s("state"), ty: { v: __gh_contract_spec.ContractTypeKind.Named, named: { crate_name: __gh_s("paymvc"), major: __gh_s("0.1"), module_path: __gh_s("paymvc::implementation"), declared: __gh_s("State") } } },
+      ],
+    },
   ],
 };
 
@@ -727,6 +791,33 @@ export const PayMVC = {
 export const paymvc = {
   v0_1: {
     implementation: {
+      Created: __gh_client_contract.defineContractEvent<
+        "Created",
+        paymvc.v0_1.implementation.Created["topics"],
+        paymvc.v0_1.implementation.Created["fields"],
+        paymvc.v0_1.implementation.CreatedFilter
+      >({
+        name: "Created",
+        signature: spec.events[0]!.signature,
+        topics: [
+          {
+            name: "from",
+            type: spec.events[0]!.topics[0]!.ty,
+            representation: "address",
+          },
+          {
+            name: "to",
+            type: spec.events[0]!.topics[1]!.ty,
+            representation: "address",
+          },
+        ],
+        fields: [
+          { name: "operation", type: spec.events[0]!.fields[0]!.ty },
+          { name: "amount", type: spec.events[0]!.fields[1]!.ty },
+          { name: "kind", type: spec.events[0]!.fields[2]!.ty },
+        ],
+        codecs: __gh_codecs,
+      }),
       Kind: {
         "Transfer": 0n,
         "Request": 1n,
@@ -743,6 +834,46 @@ export const paymvc = {
         "NotPending": 9n,
         "InvalidPage": 10n,
       },
+      Registered: __gh_client_contract.defineContractEvent<
+        "Registered",
+        paymvc.v0_1.implementation.Registered["topics"],
+        paymvc.v0_1.implementation.Registered["fields"],
+        paymvc.v0_1.implementation.RegisteredFilter
+      >({
+        name: "Registered",
+        signature: spec.events[1]!.signature,
+        topics: [
+          {
+            name: "account",
+            type: spec.events[1]!.topics[0]!.ty,
+            representation: "address",
+          },
+        ],
+        fields: [
+        ],
+        codecs: __gh_codecs,
+      }),
+      Resolved: __gh_client_contract.defineContractEvent<
+        "Resolved",
+        paymvc.v0_1.implementation.Resolved["topics"],
+        paymvc.v0_1.implementation.Resolved["fields"],
+        paymvc.v0_1.implementation.ResolvedFilter
+      >({
+        name: "Resolved",
+        signature: spec.events[2]!.signature,
+        topics: [
+          {
+            name: "from",
+            type: spec.events[2]!.topics[0]!.ty,
+            representation: "address",
+          },
+        ],
+        fields: [
+          { name: "operation", type: spec.events[2]!.fields[0]!.ty },
+          { name: "state", type: spec.events[2]!.fields[1]!.ty },
+        ],
+        codecs: __gh_codecs,
+      }),
       State: {
         "Pending": 0n,
         "Paid": 1n,
@@ -751,6 +882,12 @@ export const paymvc = {
     },
   },
 } as const;
+
+export type PayMVCEvent = paymvc.v0_1.implementation.Created | paymvc.v0_1.implementation.Registered | paymvc.v0_1.implementation.Resolved;
+
+export function decodeEvent(__gh_event: { topics: globalThis.Uint8Array[]; data: globalThis.Uint8Array }): PayMVCEvent | null {
+  return paymvc.v0_1.implementation.Created.decode(__gh_event) ?? paymvc.v0_1.implementation.Registered.decode(__gh_event) ?? paymvc.v0_1.implementation.Resolved.decode(__gh_event);
+}
 
 // The types the namespaces above refer to, under names no declaration can capture.
 export namespace __gh_codegen {

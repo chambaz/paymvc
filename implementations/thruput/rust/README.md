@@ -75,6 +75,10 @@ Native deviations from the canonical interface:
 
 An entry is stored in `entries: Map<from, Map<operation, Entry>>`, so its key is `(from, operation)`. There is no global entry ID or counter. `directory` is a vector in registration order. Each account's `history` is a vector of `EntryKey { from, operation }`. `activity` returns the entries with history index below `before`, newest first. The client starts with `before = activity_count`, so a new record cannot shift a later page.
 
+`register` sets membership, appends the directory, and mints 100 credits in one call, so setup confirms registration by reading `registered` alone: the call cannot succeed with only part of its effect.
+
+The contract emits `Registered`, `Created`, and `Resolved` events (`#[derive(Event)]`, declared with `emits(...)`, so they are in the contract spec and the generated bindings). The app reads state, not events; the events let explorers and indexers follow payments.
+
 Registration, entry creation, and request resolution use exclusive storage writes. On Thruput, identical ordinary writes can merge, so they cannot protect one-time allocation, operation IDs, or approval. A vector push writes its length with an exclusive lock. So at most one registration, and one history change per account, can land in each block. This limit comes from this contract's storage choice, not from the chain.
 
 ## 3. Token model
@@ -105,14 +109,14 @@ The general policy is in [transaction recovery](../../../docs/recovery.md).
 
 - Signed bytes and their hash are saved before broadcast. If the save fails, nothing is broadcast.
 - Confirmation needs a successful committed receipt and the expected entry: participants, amount, kind, and state. The session records the receipt's block, and later reads wait for that state height. A receipt is not a claim of irreversible finality.
-- Retry checks the original transaction. While it is unexpired, a scheduler `retry` or `dropped` status resends the same bytes.
-- A timeout, an advisory failure, or a missing receipt stays unknown. A known commitment is kept even when its receipt is unavailable.
-- Transactions expire 200 blocks after preparation. A new transaction is allowed only after a failed receipt, or after expiry plus a later `entry(from, operation)` read that shows the operation did not happen. The saved transaction is then deleted, and the user must retry explicitly.
+- Retry checks the original transaction. While it is unexpired, it resends the same bytes unless the scheduler holds them (`pending`) or they committed. This covers a node that never received them (`unknown`), a scheduler `retry`, and a `dropped` transaction that can succeed after the wallet is funded. The same bytes can land at most once.
+- A timeout, an advisory failure, a failed lookup, or a missing receipt stays unknown. A known commitment is kept even when its receipt is unavailable.
+- Transactions expire 200 blocks after preparation. After expiry, a state read at or after the chain tip decides. If `entry(from, operation)` (or `registered`) shows the expected effect, the saved transaction is confirmed, even when the node no longer has its receipt. If it shows that the operation did not happen and no commitment is known, the saved transaction is deleted, and the user must retry explicitly. A failed receipt also allows a new attempt.
 - The contract rejects a second entry with the same `(from, operation)` (`OperationUsed`), and `Paid` and `Declined` are final, so these absence checks are meaningful and a retry cannot pay twice.
 
 Setup makes one automatic recheck after five seconds for an unknown outcome or a delayed registration result. Payments make one recheck for a delayed result. A recheck never signs a new transaction. Further recovery needs user action.
 
-Before each read and write, `verifyDeployment` checks:
+Once per page load, before the first read or write, `verifyDeployment` checks:
 
 - the RPC network hash;
 - each contract's deployed code hash, through `getContractDeployment`;
@@ -159,7 +163,7 @@ npm run test:e2e
 npm run test:conformance
 ```
 
-`npm test` runs the native contract tests and the unit tests in `tests/unit/`. `npm run contracts:test` builds both RV32 artifacts and runs the same contract scenarios against them. Report native and RV32 results separately. Neither needs a node. The first native build downloads the SDK's test executor. Set `HOGD_DOWNLOAD_CACHE_DIR` to keep that download outside `target/`.
+`npm test` runs the native contract tests and the unit tests in `tests/unit/` and `tests/conformance/`. `npm run contracts:test` builds both RV32 artifacts and runs the same contract scenarios against them. Report native and RV32 results separately. Neither needs a node. The first native build downloads the SDK's test executor. Set `HOGD_DOWNLOAD_CACHE_DIR` to keep that download outside `target/`.
 
 Browser tests in `tests/e2e/` run against a local node. Playwright starts `npm run local` and the tests read `public/local.json`; they never contact Futurenet. The canonical scenario runs on desktop and mobile with real transactions. The tests fund each user from the local deployer key. Traces are off to keep keys out of artifacts. `npm run test:conformance` compares the shared files, the test snapshots, and the committed evidence with the repository, so it runs only inside the repository.
 

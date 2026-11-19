@@ -98,35 +98,55 @@ beforeEach(() => {
 });
 
 describe("deployment", () => {
+  // Verification is cached per page and deployment, so each test uses its own.
+  let fresh = 0;
+  const unverified = () => ({
+    ...config,
+    rpcUrl: `${config.rpcUrl}?t=${++fresh}`,
+  });
+
   it("accepts the saved network, code, token, and decimals", async () => {
-    await expect(verifyDeployment(config)).resolves.toBe(client);
+    const c = unverified();
+    await expect(verifyDeployment(c)).resolves.toBe(client);
   });
 
   it("rejects a different network", async () => {
+    const c = unverified();
     client.getNetworkInfo.mockResolvedValue({
       networkHash: addressFromBase58(config.address),
     });
-    await expect(verifyDeployment(config)).rejects.toThrow("network changed");
+    await expect(verifyDeployment(c)).rejects.toThrow("network changed");
   });
 
   it("rejects different PayMVC code or a missing contract", async () => {
+    const c = unverified();
     deployed.hashes[0] = contact(9);
-    await expect(verifyDeployment(config)).rejects.toThrow("not found");
+    await expect(verifyDeployment(c)).rejects.toThrow("not found");
     client.getContractDeployment.mockResolvedValue({ deployment: null });
-    await expect(verifyDeployment(config)).rejects.toThrow("not found");
+    // A failed check is not cached, so the next call checks again.
+    await expect(verifyDeployment(c)).rejects.toThrow("not found");
   });
 
   it("rejects a PayMVC bound to another token", async () => {
+    const c = unverified();
     deployed.token = contact(9);
-    await expect(verifyDeployment(config)).rejects.toThrow("not found");
+    await expect(verifyDeployment(c)).rejects.toThrow("not found");
   });
 
   it("rejects different token code or nonzero decimals", async () => {
+    const c = unverified();
     deployed.hashes[1] = contact(9);
-    await expect(verifyDeployment(config)).rejects.toThrow("credits token");
+    await expect(verifyDeployment(c)).rejects.toThrow("credits token");
     deployed.hashes[1] = config.creditsHash;
     deployed.decimals = 7n;
-    await expect(verifyDeployment(config)).rejects.toThrow("credits token");
+    await expect(verifyDeployment(c)).rejects.toThrow("credits token");
+  });
+
+  it("verifies a deployment once per page", async () => {
+    const c = unverified();
+    await verifyDeployment(c);
+    await verifyDeployment(c);
+    expect(client.getNetworkInfo).toHaveBeenCalledOnce();
   });
 });
 
@@ -314,6 +334,28 @@ describe("payments", () => {
     }) as never;
   const entryView = (value: unknown) =>
     vi.spyOn(app.entry, "view").mockResolvedValue({ value } as never);
+  /** The payer's credits, read before a payment is signed. */
+  const balanceView = (value: bigint) =>
+    vi
+      .spyOn(ERC20.v0_1.getBalanceOf, "view")
+      .mockResolvedValue({ value } as never);
+  beforeEach(() => {
+    balanceView(100n);
+  });
+
+  it("refuses a payment above the balance before signing", async () => {
+    balanceView(4n);
+    await expect(
+      execute({
+        action: "send",
+        recipient: peer,
+        amount: "5",
+        id: "",
+        operation: operationId(),
+      }),
+    ).rejects.toThrow("Not enough demo credits");
+    expect(transact).not.toHaveBeenCalled();
+  });
 
   it("allows exactly the amount and sends in one atomic batch", async () => {
     const owner = accountFor(session).address;

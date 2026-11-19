@@ -45,7 +45,7 @@ const schema = z.object({
 export type Deployment = z.infer<typeof schema>;
 export const parseDeployment = (value: unknown) => schema.parse(value);
 export const deploymentKey = (c: Deployment) =>
-  `paymvc:thruput:v3:${c.networkHash}:${c.address}`;
+  `paymvc:thruput:v4:${c.networkHash}:${c.address}`;
 
 /** One native token is 10,000,000 base units. */
 const NATIVE_DECIMALS = 7;

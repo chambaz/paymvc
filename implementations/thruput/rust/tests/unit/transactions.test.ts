@@ -128,13 +128,30 @@ it("requires an after-expiry absence proof before a new attempt", async () => {
   expect(client.sendTransaction).toHaveBeenCalledOnce();
 });
 
-it("keeps an expired transaction whose effect exists", async () => {
+it("confirms an expired transaction whose effect exists", async () => {
   await expect(run()).rejects.toBeInstanceOf(UnknownOutcome);
   client.getChainTip.mockResolvedValue({ blockHeight: 400n });
-  await expect(run()).rejects.toBeInstanceOf(UnknownOutcome);
+  // The node has no receipt, but state after expiry shows the effect.
+  await run();
   expect(absent).toHaveBeenCalledWith(400n);
-  expect(saved()).toBeDefined();
+  expect(saved()!.confirmed).toBe(true);
+  expect(session.stateHeight).toBe("400");
   expect(client.sendTransaction).toHaveBeenCalledOnce();
+});
+
+it("resends the saved bytes when the node never saw them", async () => {
+  await expect(run()).rejects.toBeInstanceOf(UnknownOutcome);
+  client.getTransactionStatus.mockResolvedValue({ status: "unknown" });
+  await expect(run()).rejects.toBeInstanceOf(UnknownOutcome);
+  const [first, second] = client.sendTransaction.mock.calls;
+  expect(second).toEqual(first);
+});
+
+it("reports a failed lookup as an unknown outcome", async () => {
+  await expect(run()).rejects.toBeInstanceOf(UnknownOutcome);
+  client.getTransactionReceipt.mockRejectedValue(new Error("RPC down"));
+  await expect(run()).rejects.toBeInstanceOf(UnknownOutcome);
+  expect(saved()).toBeDefined();
 });
 
 it("never replaces a known commitment with a missing receipt", async () => {
@@ -146,7 +163,7 @@ it("never replaces a known commitment with a missing receipt", async () => {
   client.getChainTip.mockResolvedValue({ blockHeight: 400n });
   absent.mockResolvedValue(true);
   await expect(run()).rejects.toBeInstanceOf(UnknownOutcome);
-  expect(absent).not.toHaveBeenCalled();
+  // A state read alone never releases a known commitment.
   expect(saved()!.blockHeight).toBe("110");
   expect(client.waitForTransactionReceipt).toHaveBeenLastCalledWith(
     expect.anything(),

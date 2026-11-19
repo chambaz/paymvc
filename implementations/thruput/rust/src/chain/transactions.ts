@@ -93,32 +93,56 @@ export async function transact(
 
   if (record) {
     progress("Checking the original transaction");
-    const transactionHash = hashFromBase58(record.hash);
-    const receipt = await client.getTransactionReceipt({ transactionHash });
-    if (receipt) return finish(receipt);
-    const status = await client.getTransactionStatus({ transactionHash });
-    if ("status" in status && status.status === "committed") {
-      record.blockHeight = status.blockHeight.toString();
-      persist();
-    }
-    if (!record.blockHeight) {
+    try {
+      const transactionHash = hashFromBase58(record.hash);
+      const receipt = await client.getTransactionReceipt({ transactionHash });
+      if (receipt) return finish(receipt);
+      const status = await client.getTransactionStatus({ transactionHash });
+      const state = "status" in status ? status.status : undefined;
+      if (state === "committed" && "blockHeight" in status) {
+        record.blockHeight = status.blockHeight.toString();
+        persist();
+      }
       const signed = deserializeSignedTransaction(fromHex0x(record.raw));
       const expiry = signed.tx.uniquifier.block_expiry_height;
       const tip = await client.getChainTip();
-      if (tip.blockHeight > expiry && (await proveAbsent(tip.blockHeight))) {
-        delete s.journal[label];
-        persist();
-        throw new ExpiredTransaction();
+      if (tip.blockHeight > expiry) {
+        // The transaction can no longer be included, so current state decides. The
+        // effect on chain confirms it, even when the node no longer has its receipt.
+        if (!(await proveAbsent(tip.blockHeight))) {
+          record.confirmed = true;
+          record.blockHeight ??= tip.blockHeight.toString();
+          if (tip.blockHeight > BigInt(s.stateHeight))
+            s.stateHeight = tip.blockHeight.toString();
+          persist();
+          return;
+        }
+        // A known commitment is settled only by its receipt.
+        if (!record.blockHeight) {
+          delete s.journal[label];
+          persist();
+          throw new ExpiredTransaction();
+        }
       }
-      // The scheduler may ask for the same bytes again. Never sign new ones here.
+      // Until expiry, send the same bytes again unless the scheduler holds them or they
+      // committed. They can land at most once. Never sign new ones here.
       if (
         tip.blockHeight <= expiry &&
-        "status" in status &&
-        ["retry", "dropped"].includes(status.status)
+        state !== "pending" &&
+        state !== "committed"
       )
         await client.sendTransaction({
           signedTransaction: fromHex0x(record.raw),
         });
+    } catch (error) {
+      if (
+        error instanceof ExpiredTransaction ||
+        error instanceof RevertedTransaction ||
+        error instanceof UnknownOutcome
+      )
+        throw error;
+      // A failed read or resend proves nothing either way.
+      throw new UnknownOutcome();
     }
   } else {
     progress("Preparing transaction");
