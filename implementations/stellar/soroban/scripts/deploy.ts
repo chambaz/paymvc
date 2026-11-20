@@ -17,14 +17,15 @@ import { verifyDeployment } from "../src/chain/payments";
 import { readApp } from "../src/chain/payments";
 
 const local = process.env.LOCAL === "1";
+// RPC_URL selects the endpoint this script uses. It can hold a provider key, so the
+// public record always gets the network's public URL.
+const publicRpcUrl = local
+  ? "http://127.0.0.1:8000/rpc"
+  : "https://soroban-testnet.stellar.org";
 const c: Deployment = {
   network: local ? "localnet" : "testnet",
   passphrase: local ? Networks.STANDALONE : Networks.TESTNET,
-  rpcUrl:
-    process.env.RPC_URL ??
-    (local
-      ? "http://127.0.0.1:8000/rpc"
-      : "https://soroban-testnet.stellar.org"),
+  rpcUrl: process.env.RPC_URL ?? publicRpcUrl,
   horizonUrl: local
     ? "http://127.0.0.1:8000"
     : "https://horizon-testnet.stellar.org",
@@ -130,5 +131,9 @@ if (!existing.entries.length) {
 c.token = await readApp<string>(c, deployer, "token");
 await verifyDeployment(c);
 const output = local ? "public/local.json" : "public/deployment.json";
-await writeFile(output, JSON.stringify(parseDeployment(c), null, 2) + "\n");
+await writeFile(
+  output,
+  JSON.stringify(parseDeployment({ ...c, rpcUrl: publicRpcUrl }), null, 2) +
+    "\n",
+);
 console.log(`Deployment verified and saved to ${output}: ${c.contract}`);

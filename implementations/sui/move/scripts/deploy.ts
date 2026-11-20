@@ -12,9 +12,12 @@ import { verifyDeployment } from "../src/chain/payments";
 
 const local = process.env.LOCAL === "1";
 const network = local ? "localnet" : "testnet";
-const rpcUrl =
-  process.env.RPC_URL ??
-  (local ? "http://127.0.0.1:9000" : "https://fullnode.testnet.sui.io:443");
+// RPC_URL selects the endpoint this script uses. It can hold a provider key, so the
+// public record always gets the network's public URL.
+const publicRpcUrl = local
+  ? "http://127.0.0.1:9000"
+  : "https://fullnode.testnet.sui.io:443";
+const rpcUrl = process.env.RPC_URL ?? publicRpcUrl;
 mkdirSync(".local", { recursive: true, mode: 0o700 });
 const keyFile = `.local/${local ? "local" : "testnet"}-deployer.json`;
 if (!existsSync(keyFile)) {
@@ -211,7 +214,7 @@ const config = parseDeployment({
 await verifyDeployment(config);
 writeFileSync(
   local ? "public/local.json" : "public/deployment.json",
-  JSON.stringify(config, null, 2) + "\n",
+  JSON.stringify({ ...config, rpcUrl: publicRpcUrl }, null, 2) + "\n",
 );
 console.log(
   `Verified immutable package ${packageId}, app ${app}. Publish ${publish.digest}, metadata ${metadata.digest}.`,

@@ -20,9 +20,12 @@ import { createRpc, parseDeployment, pda } from "../src/chain/config";
 import { verifyDeployment } from "../src/chain/payments";
 
 const local = process.argv.includes("--local");
-const rpcUrl =
-  process.env.RPC_URL ??
-  (local ? "http://127.0.0.1:8899" : "https://api.devnet.solana.com");
+// RPC_URL selects the endpoint this script uses. It can hold a provider key, so the
+// public record always gets the network's public URL.
+const publicRpcUrl = local
+  ? "http://127.0.0.1:8899"
+  : "https://api.devnet.solana.com";
+const rpcUrl = process.env.RPC_URL ?? publicRpcUrl;
 const client = createRpc(rpcUrl);
 const config = parseDeployment({
   network: local ? "localnet" : "devnet",
@@ -111,6 +114,6 @@ if (!existing.value) {
 await verifyDeployment(config);
 writeFileSync(
   local ? "public/local.json" : "public/deployment.json",
-  JSON.stringify(config, null, 2) + "\n",
+  JSON.stringify({ ...config, rpcUrl: publicRpcUrl }, null, 2) + "\n",
 );
 console.log(`Initialized ${config.network} mint: ${mint}`);
