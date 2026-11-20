@@ -125,6 +125,8 @@ Once per page load, before the first read or write, and again after any failed r
 
 Futurenet can reset. Sessions bind to the network hash and PayMVC address, and a mismatch stops signing.
 
+Before it signs a new write, the client checks the contract's rules with view calls, at the wallet's last confirmed height: the recipient of a send or request is registered, a request to approve or decline exists, names this wallet as payer, and is still pending, and a payment has enough credits. A write that fails these checks is never signed. A saved transaction skips them and is reconciled instead.
+
 Failed reads keep the last balance with a stale indicator. Keys stay in browser storage. Web Locks permit one writer tab. Reset removes this session's local access. It cannot cancel transactions or remove chain state.
 
 ## 6. Deploy
