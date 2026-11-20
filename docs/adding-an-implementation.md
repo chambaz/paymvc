@@ -18,7 +18,7 @@ For example, `implementations/solana/anchor`. The folder contains everything for
 - unit, browser, and live-testnet tests
 - a README and an `implementation.json` manifest
 
-A developer must be able to copy the folder out of the repository, then install, run, test, build, and deploy it. Do not import code from another implementation. Do not use symlinks or scripts that call into sibling folders.
+A developer must be able to copy the folder out of the repository, then install, run, test, build, and deploy it. Do not import code from another implementation. Do not use symlinks or scripts that call into sibling folders. The one exception is `npm run test:conformance`: it compares the folder with the shared files, so it runs only inside the repository.
 
 If a new network uses the same execution model as an existing implementation, add a network configuration instead of a new folder. For example, Base, Monad, and Robinhood Chain are network configurations in `implementations/ethereum/foundry/src/networks/`.
 
@@ -39,6 +39,7 @@ These files are shared. Copy them without changes:
 - `src/hooks/use-demo.ts`
 - every file in `src/components/`
 - `src/chain/recovery.ts`
+- `scripts/validate-manifest.ts`, which checks `implementation.json` and the evidence files
 - `src/lib/utils.ts`
 - `src/styles.css`
 - `index.html`, which holds the icon links and the link preview tags
@@ -106,7 +107,7 @@ Add `implementation.json`. It must validate against `implementation.schema.json`
 
 ### 9. Add CI
 
-Add a workflow in `.github/workflows/` that runs your check, test, build, and browser commands, and `npm run test:conformance`.
+Copy an existing workflow in `.github/workflows/` and change the folder, the `paths` filters, and the toolchain steps. It runs `npm run check`, `npm test`, `npm run build`, `npm run test:e2e`, and `npm run test:conformance`. Pin each action to a commit SHA, and pin and verify each toolchain: check a download against its published SHA-256, or install an exact version with a lock file (for example `cargo install --locked`).
 
 ## Pull request checklist
 

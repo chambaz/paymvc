@@ -144,7 +144,7 @@ LOCAL=1 npm run test:live:browser
 
 Rust contract tests run without Docker. Build the credits WASM before running tests: app tests deploy it through the real constructor. Unit tests are in `tests/unit/`.
 
-Browser tests need the local network and `LOCAL=1 npm run deploy` (see [Local network](#local-network)). Run browser suites sequentially. `test:e2e` starts a separate frontend on port 5182 and uses `public/local.json`. Traces and video are disabled to keep local signing data out of artifacts. Repository-only `npm run test:conformance` also compares the local acceptance snapshots with the root conformance contract.
+Browser tests need the local network and `LOCAL=1 npm run deploy` (see [Local network](#local-network)). Run browser suites sequentially. `test:e2e` starts a separate frontend on port 5182 and uses `public/local.json`. Traces and video are disabled to keep local signing data out of artifacts. `npm run test:conformance` compares the shared files, the test snapshots, and the committed evidence with the repository, so it runs only inside the repository.
 
 ### Evidence
 

@@ -1,8 +1,18 @@
-.local/
+# Dependencies, builds, and test output
 node_modules/
 dist/
-contracts/build/
+coverage/
+*.tsbuildinfo
 test-results/
 playwright-report/
-.aptos/
+
+# Private local data: keys, sessions, and local deployments
+.local/
+.env
+.env.*
+!.env.example
 public/local.json
+
+# Aptos
+contracts/build/
+.aptos/

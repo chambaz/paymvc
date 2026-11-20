@@ -15,7 +15,7 @@
     "contracts:build": "stellar contract build",
     "test:e2e": "playwright test",
     "test:live:browser": "LIVE=1 playwright test --grep 'canonical independent-user'",
-    "test:conformance": "node ../../../conformance/verify.mjs && npm run test:e2e",
+    "test:conformance": "node ../../../conformance/verify.mjs",
     "deploy": "tsx scripts/deploy.ts",
     "test:live": "tsx scripts/live.ts",
     "local": "tsx scripts/local.ts"

@@ -1,11 +1,19 @@
+# Dependencies, builds, and test output
 node_modules/
 dist/
-target/
-.local/
-.stellar/
-test_snapshots/
+coverage/
+*.tsbuildinfo
 test-results/
 playwright-report/
-public/local.json
+
+# Private local data: keys, sessions, and local deployments
+.local/
 .env
 .env.*
+!.env.example
+public/local.json
+
+# Soroban
+target/
+.stellar/
+test_snapshots/

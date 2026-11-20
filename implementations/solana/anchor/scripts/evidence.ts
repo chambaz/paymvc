@@ -20,7 +20,7 @@ export type Run = {
 type Section = { chain: Run } | { browser: Run[] };
 
 /** Check evidence against the local copy of the shared schema. */
-export function validateEvidence(path: string, evidence: unknown) {
+export function validateEvidence(evidence: unknown, path: string) {
   const validate = new Ajv({
     strict: true,
     formats: {
@@ -108,7 +108,7 @@ export async function writeEvidence(c: Deployment, section: Section) {
     browser: same ? previous.browser : undefined,
     ...section,
   };
-  validateEvidence(path, evidence);
+  validateEvidence(evidence, path);
   mkdirSync(draft ? ".local" : "evidence", { recursive: true });
   writeFileSync(path, JSON.stringify(evidence, null, 2) + "\n");
   console.log(

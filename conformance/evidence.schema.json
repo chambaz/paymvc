@@ -1,7 +1,7 @@
 {
   "$schema": "http://json-schema.org/draft-07/schema#",
   "title": "PayMVC live-testnet evidence",
-  "description": "The result of the shared scenario on one public network. One file per network: implementations/<chain>/<framework>/evidence/<network>.json. Never contains keys, signed transactions, or browser profiles.",
+  "description": "The result of the shared scenario on one public network. One file per network: implementations/<chain>/<framework>/evidence/<network>.json. Never contains keys, signed transactions, or browser profiles. The writer adds the chain and browser runs one at a time, so this schema does not require them. conformance/verify.mjs requires committed evidence to have the chain run and both browser runs.",
   "type": "object",
   "additionalProperties": false,
   "required": ["specVersion", "implementation", "network", "deployment"],

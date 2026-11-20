@@ -87,7 +87,13 @@ Run live tests from a clean working tree, so that `revision` is the code that wa
 
 ## Repository checks
 
-`conformance/verify.mjs` checks that each implementation's shared files and its copies of the test files and schemas match, and that evidence files have the required fields and no private material. Run it through each implementation's `npm run test:conformance`.
+`conformance/verify.mjs` checks that:
+
+- each implementation's shared files match the Ethereum implementation
+- each implementation's copies of the test files and schemas match `conformance/`
+- each committed evidence file has a chain run and a desktop and mobile browser run, a passed run ends at 85 and 115 credits with four activity rows each, and no field can hold private material
+
+Run it from the repository root for every implementation, or through one implementation's `npm run test:conformance`. It runs only inside the repository. `scripts/validate-manifest.ts`, part of each implementation's `npm run check`, validates `implementation.json` and the evidence files against their schemas.
 
 Each implementation also runs its own checks:
 

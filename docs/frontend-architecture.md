@@ -85,6 +85,7 @@ These files must be identical in every implementation:
 - `src/hooks/use-demo.ts`
 - every file in `src/components/`
 - `src/chain/recovery.ts`
+- `scripts/validate-manifest.ts`, which checks `implementation.json` and the evidence files
 - `src/lib/utils.ts`
 - `src/styles.css`
 - `index.html`, which holds the icon links and the link preview tags

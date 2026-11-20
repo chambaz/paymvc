@@ -1,37 +1,55 @@
 name: EVM implementation checks
 on:
   push:
+    branches: [main]
+    paths:
+      - "implementations/ethereum/foundry/**"
+      - "conformance/**"
+      - ".github/workflows/ethereum.yml"
   pull_request:
+    paths:
+      - "implementations/ethereum/foundry/**"
+      - "conformance/**"
+      - ".github/workflows/ethereum.yml"
 permissions:
   contents: read
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 jobs:
   verify:
     runs-on: ubuntu-24.04
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: implementations/ethereum/foundry
     steps:
-      - uses: actions/checkout@v6
-      - uses: actions/setup-node@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: "24.21.0"
           cache: npm
           cache-dependency-path: implementations/ethereum/foundry/package-lock.json
-      - uses: foundry-rs/foundry-toolchain@v1
+      - uses: foundry-rs/foundry-toolchain@dba66c27052e63476d886f22216e119ba7e615bf # v1.9.2
         with:
           version: v1.7.1
       - run: npm ci
       - run: npm run check
       - run: npm test
       - run: npm run contracts:build
-      - run: git diff --exit-code -- src/chain/generated/
+      - name: Check generated ABIs
+        # Fails on changed, new, or deleted generated files.
+        run: |
+          git status --porcelain -- src/chain/generated
+          test -z "$(git status --porcelain -- src/chain/generated)"
       - run: npm run build
       - run: npx playwright install --with-deps chromium
+      - run: npm run test:e2e
       - run: npm run test:conformance
       - run: npm run test:networks
       # Screenshots and failure context only. .local/ holds keys and is never uploaded.
       - if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: evm-test-results
           path: |
@@ -39,17 +57,19 @@ jobs:
           retention-days: 7
   visual:
     runs-on: ubuntu-24.04
-    # Same image as npm run test:visual, so baselines match on every machine.
-    container: mcr.microsoft.com/playwright:v1.65.0-noble
+    timeout-minutes: 15
+    # Same image and digest as npm run test:visual, so baselines match on every
+    # machine. Dependabot does not update this digest: change both together.
+    container: mcr.microsoft.com/playwright:v1.65.0-noble@sha256:9beb546099e11f52d62e505537914870e01a67e0e6b00ae41da4775324e73dbe
     defaults:
       run:
         working-directory: implementations/ethereum/foundry
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       - run: npm ci
       - run: npx playwright test -c playwright.visual.config.ts
       - if: failure()
-        uses: actions/upload-artifact@v7
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
           name: evm-visual-test-results
           path: |

@@ -120,7 +120,7 @@ npm run test:e2e
 npm run test:conformance
 ```
 
-`npm test` runs the Move unit tests and the Vitest unit tests in `tests/unit/`. `npm run test:e2e` starts `npm run local` and runs the browser tests in `tests/e2e/` against real local transactions. Run browser suites one at a time. `npm run test:conformance` checks snapshots against the repository. It is the only command that needs the repository layout. CI runs these commands in `.github/workflows/aptos.yml`.
+`npm test` runs the Move unit tests and the Vitest unit tests in `tests/unit/`. `npm run test:e2e` starts `npm run local` and runs the browser tests in `tests/e2e/` against real local transactions. Run browser suites one at a time. `npm run test:conformance` compares the shared files, the test snapshots, and the committed evidence with the repository, so it runs only inside the repository. CI runs these commands in `.github/workflows/aptos.yml`.
 
 Public acceptance runs against Testnet:
 

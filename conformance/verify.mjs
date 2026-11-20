@@ -36,6 +36,7 @@ const components = async (folder) =>
 const shared = [
   "src/hooks/use-demo.ts",
   "src/chain/recovery.ts",
+  "scripts/validate-manifest.ts",
   "src/lib/utils.ts",
   "src/styles.css",
   "index.html",
@@ -54,7 +55,15 @@ const sameBytes = async (a, b) => {
 
 async function implementations() {
   const cwd = process.cwd();
-  if (cwd !== root) return [cwd];
+  if (cwd !== root) {
+    if ((await read(join(cwd, "implementation.json"))) === undefined) {
+      console.error(
+        "Run this check from the repository root or from an implementation folder.",
+      );
+      process.exit(1);
+    }
+    return [cwd];
+  }
   const folders = [];
   for (const chain of await readdir(join(root, "implementations")))
     for (const framework of await readdir(join(root, "implementations", chain)))
@@ -68,7 +77,8 @@ async function implementations() {
 
 const failures = [];
 
-// A light check; each implementation validates evidence fully against its schema copy.
+// Committed evidence is complete: one chain run and one browser run for each
+// viewport. Each implementation validates the full shape against its schema copy.
 function checkEvidence(path, text) {
   const problems = [];
   let evidence;
@@ -82,8 +92,35 @@ function checkEvidence(path, text) {
     "implementation",
     "network",
     "deployment",
+    "chain",
+    "browser",
   ])
     if (!(field in evidence)) problems.push(`${path} has no ${field}`);
+  const runs = [
+    ["chain", evidence.chain],
+    ...["desktop", "mobile"].map((viewport) => [
+      `${viewport} browser`,
+      Array.isArray(evidence.browser)
+        ? evidence.browser.find((run) => run.viewport === viewport)
+        : undefined,
+    ]),
+  ];
+  for (const [name, run] of runs) {
+    if (!run) {
+      problems.push(`${path} has no ${name} run`);
+      continue;
+    }
+    // The shared scenario ends at 85 and 115 credits with four activity rows each.
+    if (
+      run.result === "passed" &&
+      (run.balances?.a !== "85" ||
+        run.balances?.b !== "115" ||
+        run.activity?.a !== 4 ||
+        run.activity?.b !== 4 ||
+        !run.transactions?.length)
+    )
+      problems.push(`${path} ${name} run passed without the scenario result`);
+  }
   // Evidence is public. It must never hold keys or signed transactions.
   if (
     /"(seed|secret|privateKey|private_key|mnemonic|raw|signature|key)"\s*:/i.test(

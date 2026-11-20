@@ -136,7 +136,7 @@ cargo clippy --all-targets --all-features --locked -- -D warnings
 
 Build the program before tests. Rust tests run the actual SBPF program in LiteSVM. Unit tests are in `tests/unit/`. Browser tests in `tests/e2e/` use real validator transactions and independent A/B sessions. Run browser suites one at a time. Traces and videos are off to keep keys out of artifacts. Local tests do not prove public-testnet acceptance.
 
-This directory can be copied on its own. In the repository, `npm run test:conformance` also compares the test snapshots with `conformance/`. Production code never imports sibling implementations.
+This directory can be copied on its own. `npm run test:conformance` compares the shared files, the test snapshots, and the committed evidence with the repository, so it runs only inside the repository. Production code never imports sibling implementations.
 
 ### Live evidence
 
