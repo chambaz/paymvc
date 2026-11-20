@@ -8,14 +8,16 @@ import {
 
 /**
  * A fixed message for an RPC failure. SDK messages can hold the endpoint URL, which
- * can hold a provider key, so the user never sees them.
+ * can hold a provider key, so the user never sees them. The failure can come before
+ * anything is signed, so the message does not say that progress is saved: the view
+ * shows the recovery actions when an operation is saved.
  */
 function rpcFailure(status?: number) {
   if (status === 429)
-    return "The RPC is rate-limiting requests. Your progress is saved. Wait a moment, then retry.";
+    return "The RPC is rate-limiting requests. Wait a moment, then retry.";
   if (status && status >= 500)
-    return "The RPC is temporarily unavailable. Your progress is saved. Retry when it responds.";
-  return "The RPC could not complete this step. Your progress is saved. Retry to check the original transactions.";
+    return "The RPC is temporarily unavailable. Retry when it responds.";
+  return "The RPC could not complete this step. Please retry.";
 }
 
 /** True for a browser fetch that failed before any response. */

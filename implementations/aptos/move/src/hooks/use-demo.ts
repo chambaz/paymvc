@@ -72,11 +72,7 @@ export function useDemo(config: Deployment) {
         setCorrupt(false);
         setUnknown(
           Boolean(
-            saved?.intent &&
-            Object.entries(saved.journal).some(
-              ([label, record]) =>
-                label.startsWith(saved.intent!.operation) && !record.confirmed,
-            ),
+            saved?.intent && hasUnconfirmed(saved, saved.intent.operation),
           ),
         );
       } catch (error) {
@@ -250,12 +246,7 @@ export function useDemo(config: Deployment) {
     if (!saved?.intent || running.current || !writer) return;
     const { operation } = saved.intent;
     // Only unbroadcast or definitively reverted operations may be dismissed.
-    if (
-      Object.entries(saved.journal).some(
-        ([label, record]) => label.startsWith(operation) && !record.confirmed,
-      )
-    )
-      return;
+    if (hasUnconfirmed(saved, operation)) return;
     forget(saved, operation);
     saved.intent = null;
     persistFor(saved)();
@@ -282,9 +273,14 @@ export function useDemo(config: Deployment) {
     cache.removeQueries({ queryKey: ["contacts", key] });
     cache.removeQueries({ queryKey: ["funding", key] });
   }
+  const operation = session?.intent?.operation;
   return {
     session,
     loaded,
+    // A saved, unconfirmed transaction may still land, so the operation cannot be
+    // dismissed. Without saved transactions, a retry prepares a new attempt.
+    dismissible: Boolean(operation && !hasUnconfirmed(session!, operation)),
+    saved: Boolean(operation && hasRecords(session!, operation)),
     corrupt,
     writer,
     busy,
@@ -328,6 +324,12 @@ function unresolved(error: unknown) {
 function hasRecords(session: Session, operation: string) {
   return Object.keys(session.journal).some((label) =>
     label.startsWith(operation),
+  );
+}
+
+function hasUnconfirmed(session: Session, operation: string) {
+  return Object.entries(session.journal).some(
+    ([label, record]) => label.startsWith(operation) && !record.confirmed,
   );
 }
 

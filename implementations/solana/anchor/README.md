@@ -129,7 +129,8 @@ solana program deploy target/deploy/paymvc.so --program-id .local/paymvc-program
 - For a new program, generate a key with `solana-keygen new --outfile .local/paymvc-program.json`. Put its address in `declare_id!` and `Anchor.toml`, then rebuild. A new program ID gives every browser a new session.
 - `--final` removes the upgrade authority. The program can never change, and the browser refuses a program that still has an authority. Local validators load the program the same way.
 - The deploy script uses `.local/deployer.json` and the buffer key `.local/paymvc-buffer.json`. It prints the deployer address and balance. Rent is (bytes + 128) × 6,960 lamports per account. For the current 295 KB program, the buffer and the program data need about 2.1 SOL each, so the deployer needs about 4.2 SOL plus fees. The buffer rent returns after deployment.
-- If an upload stops, rerun. The CLI resumes into the same buffer.
+- If an upload stops, rerun. The CLI resumes into the same buffer. If the program is already deployed, a rerun skips the upload and continues with initialization.
+- The CLI reads the endpoint and the deployer key path from `.local/solana-cli.yml`, mode 0600, so the endpoint never appears on a command line.
 - Initialization signs with the deployer key, saves the signed bytes before broadcast, and reconciles them on rerun. It writes the verified configuration to `public/deployment.json`.
 - `RPC_URL` selects the Devnet endpoint that the deploy scripts use, for example a keyed provider. It never goes in the deployment record, which always has the public Devnet URL. Keep all keys private.
 

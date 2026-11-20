@@ -70,7 +70,8 @@ Follow [transaction recovery](recovery.md). Save each signed transaction before 
 
 ### 4. Deploy to a public testnet
 
-- Add a `deploy` script that a maintainer can run again safely.
+- Add a `deploy` script that a maintainer can run again safely. A rerun resumes or checks the existing deployment. It never deploys a new app unless the maintainer asks for it, for example with `--replace`: a new app moves every wallet, the directory, and the evidence to an empty deployment.
+- Let `RPC_URL` select a private endpoint for the script. Keep that URL out of the deployment record, the output, and command lines: pass it to CLIs through the environment or a private (0600) config file.
 - Commit the public deployment record (for example `public/deployment.json`). Never commit keys.
 - Verify the deployment in the browser before the first write: network identity, contract code, and token settings.
 - Link a faucet. If the faucet needs sign-in or has limits, say so in your README.

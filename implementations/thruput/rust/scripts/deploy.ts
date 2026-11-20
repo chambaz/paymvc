@@ -87,8 +87,18 @@ console.log("Deployment wallet:", deployer);
     }),
   });
   const { networkHash } = (await response.json()).result;
-  // A reset network or new contract code needs a new deployment.
+  // A reset network or new contract code needs a new deployment. After a reset, the old
+  // app no longer exists. New code on the same network would replace a live app, whose
+  // wallets, directory, and evidence refer to it, so that needs --replace.
   if (journal.networkHash !== networkHash || journal.artifacts !== artifacts) {
+    if (
+      journal.paymvc &&
+      journal.networkHash === networkHash &&
+      !process.argv.includes("--replace")
+    )
+      throw new Error(
+        "The contracts changed since the saved deployment. Nothing was deployed. Rerun with --replace to deploy a new app.",
+      );
     if (journal.paymvc)
       console.log("The network or the contracts changed. Deploying again.");
     journal = { deployer: journal.deployer, networkHash, artifacts };

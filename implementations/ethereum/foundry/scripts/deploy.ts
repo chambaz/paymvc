@@ -25,9 +25,10 @@ import { keystore } from "./keystore";
 const local = process.argv.includes("--local");
 const chain = local ? foundry : network.chain;
 // Forge reads the named endpoint from foundry.toml. RPC_URL overrides the endpoint that
-// this script and forge use. It can hold a provider key, so it never goes in the public record.
+// this script and forge use. It can hold a provider key, so it never goes in the public
+// record or on forge's command line: the `private` endpoint reads it from the environment.
 const publicRpcUrl = local ? "http://127.0.0.1:8545" : network.rpcUrl;
-const endpoint = process.env.RPC_URL ?? (local ? "anvil" : networkId);
+const endpoint = process.env.RPC_URL ? "private" : local ? "anvil" : networkId;
 const rpcUrl = process.env.RPC_URL ?? publicRpcUrl;
 const path = local ? resolve("public", "local.json") : deploymentPath;
 const resume = process.argv.includes("--resume");

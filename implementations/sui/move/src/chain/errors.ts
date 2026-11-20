@@ -13,16 +13,18 @@ const abortCodes: Record<number, string> = {
 
 /**
  * A fixed message for an RPC failure. SDK messages can hold the endpoint URL, which
- * can hold a provider key, so the user never sees them.
+ * can hold a provider key, so the user never sees them. The failure can come before
+ * anything is signed, so the message does not say that progress is saved: the view
+ * shows the recovery actions when an operation is saved.
  */
 function rpcFailure(code?: string) {
   if (code === "RESOURCE_EXHAUSTED")
-    return "The RPC is rate-limiting requests. Your progress is saved. Wait a moment, then retry.";
+    return "The RPC is rate-limiting requests. Wait a moment, then retry.";
   if (code === "UNAVAILABLE")
-    return "The RPC is temporarily unavailable. Your progress is saved. Retry when it responds.";
+    return "The RPC is temporarily unavailable. Retry when it responds.";
   if (code === "DEADLINE_EXCEEDED")
-    return "The RPC did not respond in time. Your progress is saved. Retry to check the same transactions.";
-  return "The RPC could not complete this step. Your progress is saved. Retry to check the original transactions.";
+    return "The RPC did not respond in time. Please retry.";
+  return "The RPC could not complete this step. Please retry.";
 }
 
 /** True for a browser fetch that failed before any response. */

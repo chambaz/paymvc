@@ -11,7 +11,7 @@ import {
   type TransactionSigner,
 } from "@solana/kit";
 import {
-  fetchToken,
+  fetchMaybeToken,
   fetchMint,
   findAssociatedTokenPda,
   getCreateAssociatedTokenIdempotentInstruction,
@@ -192,6 +192,28 @@ export async function fundingBudget(c: Deployment, visitor: Address) {
   return { balance, required };
 }
 
+/**
+ * The credits in an owner's associated token account, the account that the app
+ * spends from. A wallet can close an empty one, so a missing account holds 0.
+ */
+async function credits(
+  client: ReturnType<typeof rpc>,
+  c: Deployment,
+  owner: Address,
+) {
+  const token = await fetchMaybeToken(client, await tokenAddress(c, owner), {
+    commitment,
+  });
+  if (!token.exists) return 0n;
+  if (
+    token.programAddress !== TOKEN_PROGRAM_ADDRESS ||
+    token.data.owner !== owner ||
+    token.data.mint !== (await pda(c, "mint"))
+  )
+    throw new Error("Token account verification failed.");
+  return token.data.amount;
+}
+
 /** A read that the RPC could not answer at the needed slot yet. */
 const pending = (): never => {
   throw new ResultPending();
@@ -357,12 +379,7 @@ export function payments(
                 ),
               ];
             }
-            const token = await fetchToken(
-              client,
-              await tokenAddress(c, actor),
-              { commitment },
-            );
-            if (token.data.amount < amount)
+            if ((await credits(client, c, actor)) < amount)
               throw new Error(
                 "Not enough demo credits. No payment was completed.",
               );
@@ -438,12 +455,7 @@ export function payments(
                 await requireLamports(actor, []);
                 return [await getDeclineInstructionAsync(input, program)];
               }
-              const token = await fetchToken(
-                client,
-                await tokenAddress(c, actor),
-                { commitment },
-              );
-              if (token.data.amount < entry.data.amount)
+              if ((await credits(client, c, actor)) < entry.data.amount)
                 throw new Error(
                   "Not enough demo credits. No payment was completed.",
                 );
@@ -568,18 +580,12 @@ export async function readContacts(c: Deployment, s: Session, offset: bigint) {
 /** The verified credit balance and activity count of a registered owner. */
 export async function readAccount(c: Deployment, owner: Address) {
   const client = rpc(c);
-  const [profile, token] = await Promise.all([
+  const [profile, balance] = await Promise.all([
     fetchProfile(client, await profileAddress(c, owner), { commitment }),
-    fetchToken(client, await tokenAddress(c, owner), { commitment }),
+    credits(client, c, owner),
   ]);
   verifyOwner(c, profile);
-  if (
-    token.programAddress !== TOKEN_PROGRAM_ADDRESS ||
-    token.data.owner !== owner ||
-    token.data.mint !== (await pda(c, "mint"))
-  )
-    throw new Error("Token account verification failed.");
-  return { balance: token.data.amount, count: profile.data.activityCount };
+  return { balance, count: profile.data.activityCount };
 }
 
 export async function readDashboard(c: Deployment, s: Session, limit = 50) {

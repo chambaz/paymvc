@@ -9,6 +9,10 @@ export interface FeedbackProps {
   error: string;
   pending: boolean;
   unknown: boolean;
+  /** The operation has no unconfirmed transaction, so it may be dismissed. */
+  dismissible: boolean;
+  /** A signed transaction is saved, so a recheck checks it instead of signing a new one. */
+  saved: boolean;
   stale?: boolean;
   readOnly?: boolean;
   /** Show the stale and read-only notices here. One place on the page shows them. */
@@ -27,7 +31,9 @@ export function Feedback(props: FeedbackProps) {
         ? "The network has not confirmed your last operation. Recheck it before you start another. It will not be sent twice."
         : props.readOnly
           ? "Your last operation is unresolved. Recheck or dismiss it in the tab that owns this demo."
-          : "Your last operation is unresolved. Recheck it, or dismiss it to continue."
+          : props.saved
+            ? "Your last operation is unresolved. Recheck it, or dismiss it to continue."
+            : "Your last operation failed. Retry it, or dismiss it to continue."
       : "");
   const notices = props.notices ?? true;
   const stale = notices && props.stale;
@@ -95,9 +101,9 @@ export function Feedback(props: FeedbackProps) {
             disabled={props.readOnly}
             onClick={props.onRetry}
           >
-            Recheck original operation
+            {props.saved ? "Recheck original operation" : "Retry"}
           </Button>
-          {!props.unknown ? (
+          {!props.unknown && props.dismissible ? (
             <Button
               variant="ghost"
               disabled={props.readOnly}

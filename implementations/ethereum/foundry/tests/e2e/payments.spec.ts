@@ -708,6 +708,80 @@ test("a read-only tab cannot recheck a saved request response", async ({
   await page.unrouteAll({ behavior: "wait" });
 });
 
+test("a failed read during a recheck offers no dismiss while the payment can land", async ({
+  page,
+}) => {
+  const recipient = await registeredContact();
+  await start(page);
+  // The payment cannot be broadcast, so its signed transaction stays saved and unconfirmed.
+  await page.route(config.rpcUrl, async (route) => {
+    const body = route.request().postDataJSON();
+    if (body.method !== "eth_sendRawTransaction") return route.continue();
+    await route.fulfill({
+      json: {
+        jsonrpc: "2.0",
+        id: body.id,
+        error: { code: -32000, message: "RPC unavailable" },
+      },
+    });
+  });
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  await select(page, recipient);
+  await page.getByLabel("Amount", { exact: true }).fill("7");
+  await page.getByRole("button", { name: "Send credits", exact: true }).click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "Progress saved" }).first(),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  const recheck = page.getByRole("button", {
+    name: "Recheck original operation",
+  });
+  await expect(recheck).toBeEnabled();
+  await page.unrouteAll({ behavior: "wait" });
+  // The recheck's first read fails. The saved transaction can still land.
+  await page.route(config.rpcUrl, async (route) =>
+    route.request().postDataJSON().method === "eth_call"
+      ? route.abort("failed")
+      : route.continue(),
+  );
+  await recheck.click();
+  await expect(
+    page.getByRole("alert").filter({ hasText: "could not complete" }),
+  ).toBeVisible();
+  await expect(recheck).toBeEnabled();
+  await expect(
+    page.getByRole("button", { name: "Dismiss failed operation" }),
+  ).toHaveCount(0);
+  await page.unrouteAll({ behavior: "wait" });
+  await recheck.click();
+  await expect(recheck).toHaveCount(0);
+  await expect(page.getByTestId("balance")).toHaveText("93");
+});
+
+test("a failed operation without a saved transaction offers Retry and Dismiss", async ({
+  page,
+}) => {
+  await page.goto("/reference.html");
+  await page
+    .getByLabel("Preview state", { exact: true })
+    .selectOption("failed");
+  await expect(
+    page.getByRole("button", { name: "Retry", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Dismiss failed operation" }),
+  ).toBeVisible();
+  await page
+    .getByLabel("Preview state", { exact: true })
+    .selectOption("unknown");
+  await expect(
+    page.getByRole("button", { name: "Recheck original operation" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Dismiss failed operation" }),
+  ).toHaveCount(0);
+});
+
 test("a saved request response stays recoverable when its row is not loaded", async ({
   page,
 }) => {

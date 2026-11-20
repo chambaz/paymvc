@@ -58,16 +58,16 @@ export function readableError(error: unknown) {
         cause instanceof HttpRequestError || cause instanceof TimeoutError,
     );
     if (transport instanceof HttpRequestError && transport.status === 429)
-      return "The RPC is rate-limiting requests. Your progress is saved. Wait a moment, then retry.";
+      return "The RPC is rate-limiting requests. Wait a moment, then retry.";
     if (transport instanceof TimeoutError)
-      return "The RPC did not respond in time. Your progress is saved. Retry to check the same transactions.";
+      return "The RPC did not respond in time. Please retry.";
     if (
       transport instanceof HttpRequestError &&
       transport.status &&
       transport.status >= 500
     )
-      return "The RPC is temporarily unavailable. Your progress is saved. Retry when it responds.";
-    return "The RPC could not complete this step. Your progress is saved. Retry to check the original transactions.";
+      return "The RPC is temporarily unavailable. Retry when it responds.";
+    return "The RPC could not complete this step. Please retry.";
   }
   return error instanceof Error
     ? error.message
