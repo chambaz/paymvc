@@ -1,9 +1,9 @@
 {
   "chainId": 46630,
   "rpcUrl": "https://rpc.testnet.chain.robinhood.com",
-  "address": "0x24c7df116bc5ab93b7a047d3516855850fdd86d6",
-  "token": "0x74eE04555EC86e64A2339510122224b43f295DDD",
-  "deploymentBlock": "152905438",
-  "codeHash": "0xb00db1343d5bc5ef853bff7633caad3fe448933e3ccc708413fa6b75240c76df",
+  "address": "0x32fd3c98e5879d5782bf8ed4eb1124dc94de2b85",
+  "token": "0xeB522b611e5BBA67e18cA556A0FB53461fC16Cb5",
+  "deploymentBlock": "155691492",
+  "codeHash": "0xd66e45e84dcf42a8cd63aea5a099dcad5ebd49744a87260923e6297b3464e10f",
   "faucetUrl": "https://faucet.testnet.chain.robinhood.com"
 }

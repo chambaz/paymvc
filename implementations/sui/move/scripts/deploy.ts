@@ -65,13 +65,25 @@ const sui = (...args: string[]) =>
 
 const client = server({ network, rpcUrl });
 const { chainIdentifier } = await client.getChainIdentifier();
+// The saved transactions belong to one build of the package, so new code gets new files
+// and a rerun of the same code sends the same signed bytes.
+const { digest } = JSON.parse(
+  execFileSync(
+    "sui",
+    ["move", "build", "--path", "contracts", "--dump-bytecode-as-base64"],
+    { encoding: "utf8", stdio: ["ignore", "pipe", "inherit"] },
+  ),
+) as { digest: number[] };
+const build = Buffer.from(digest).toString("hex").slice(0, 16);
+const txFile = (label: string) =>
+  `.local/${network}-${chainIdentifier}-${build}-${label}.tx`;
 
 /**
  * Sign the PTB once and save it before broadcast. A rerun sends the same
  * signed bytes, so it cannot create a second publication.
  */
 function execute(label: string, command: string[]) {
-  const file = `.local/${network}-${chainIdentifier}-${label}.tx`;
+  const file = txFile(label);
   if (!existsSync(file))
     writeFileSync(
       file,
@@ -103,7 +115,7 @@ function execute(label: string, command: string[]) {
   };
 }
 
-if (!existsSync(`.local/${network}-${chainIdentifier}-publish.tx`)) {
+if (!existsSync(txFile("publish"))) {
   const { balance } = await client.getBalance({ owner: deployer.address });
   console.log(`Balance: ${balance.balance} MIST`);
   if (BigInt(balance.balance) < 200_000_000n)

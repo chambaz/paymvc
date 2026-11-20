@@ -27,7 +27,8 @@ export const networks = {
       "https://cloud.google.com/application/web3/faucet/ethereum/sepolia",
     port: 5173,
     fundingMinimum: "0.0005",
-    // Sepolia prices new storage far above other networks: a request uses about 1.25M gas.
+    // Sepolia prices new storage far above other networks: a send uses about 0.95M gas and a
+    // request about 0.6M (measured November 2026). One user's scenario stays under 2.5M.
     fundingGas: 5_000_000n,
   },
   base: {
