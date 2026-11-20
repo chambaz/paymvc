@@ -131,7 +131,7 @@ The script:
 3. Computes the contract ID from the deployer and a saved salt (`stellar contract id wasm`). It deploys only if that contract does not exist yet.
 4. Verifies the network, code hashes, token address, and zero decimals, then writes the record.
 
-A re-run is safe: an upload of existing code is a no-op, and the fixed salt makes a confirmed deployment visible instead of creating a second one. The CLI configuration (deployer key and salts) is in `.local/cli-<network>/`. Keep this directory private. New contract code gets a new salt and a fresh deployment. To redeploy the same code, delete its `.salt` file. `RPC_URL` can select another Testnet RPC.
+A re-run is safe: an upload of existing code is a no-op, and the fixed salt makes a confirmed deployment visible instead of creating a second one. The CLI configuration (deployer key and salts) is in `.local/cli-<network>/`. Keep this directory private. New contract code gets a new salt and a fresh deployment. To redeploy the same code, delete its `.salt` file. `RPC_URL` can select another Testnet RPC for the deploy script. It never goes in the deployment record, which always has the public Testnet URL.
 
 `npm run test:live` stores the private A/B sessions under `.local/live-v2-<network>-<contract>-<run>/`. Set `LIVE_RUN` to a new name for fresh identities. Friendbot funds users A and B in both live commands; the deployer does not fund them. Testnet resets invalidate deployments and sessions; redeploy and reset the browser after a network reset.
 

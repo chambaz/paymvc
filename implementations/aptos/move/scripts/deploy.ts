@@ -15,9 +15,12 @@ import { moduleHash, verifyDeployment, view } from "../src/chain/payments";
 
 const local = process.env.LOCAL === "1";
 const network = local ? ("localnet" as const) : ("testnet" as const);
-const rpcUrl =
-  process.env.RPC_URL ??
-  (local ? "http://127.0.0.1:8180/v1" : "https://api.testnet.aptoslabs.com/v1");
+// RPC_URL selects the endpoint this script uses. It can hold a provider key, so the
+// public record always gets the network's public URL.
+const publicRpcUrl = local
+  ? "http://127.0.0.1:8180/v1"
+  : "https://api.testnet.aptoslabs.com/v1";
+const rpcUrl = process.env.RPC_URL ?? publicRpcUrl;
 // Publishing used 64,059 gas units (about 0.064 APT at 100 octas per unit). Keep a margin.
 const REQUIRED_OCTAS = 10_000_000n;
 
@@ -162,7 +165,7 @@ await verifyDeployment(config);
 mkdirSync("public", { recursive: true });
 writeFileSync(
   local ? "public/local.json" : "public/deployment.json",
-  JSON.stringify(config, null, 2) + "\n",
+  JSON.stringify({ ...config, rpcUrl: publicRpcUrl }, null, 2) + "\n",
 );
 console.log(
   `Verified immutable package ${owner}; publish transaction ${publication.hash}`,

@@ -24,10 +24,14 @@ import { keystore } from "./keystore";
 // runs that command, and writes the verified public deployment record from its broadcast output.
 const local = process.argv.includes("--local");
 const chain = local ? foundry : network.chain;
-// Forge reads the named endpoint from foundry.toml. RPC_URL overrides it for both tools.
+// Forge reads the named endpoint from foundry.toml. RPC_URL overrides the endpoint that
+// this script and forge use. It can hold a provider key, so it never goes in the public record.
+const publicRpcUrl = local ? "http://127.0.0.1:8545" : network.rpcUrl;
 const endpoint = process.env.RPC_URL ?? (local ? "anvil" : networkId);
-const rpcUrl =
-  process.env.RPC_URL ?? (local ? "http://127.0.0.1:8545" : network.rpcUrl);
+const rpcUrl = process.env.RPC_URL ?? publicRpcUrl;
+const path = local ? resolve("public", "local.json") : deploymentPath;
+const resume = process.argv.includes("--resume");
+const replace = process.argv.includes("--replace");
 const keyPath = local
   ? resolve(".local", "local-deployer")
   : resolve(
@@ -48,6 +52,28 @@ const deployer = privateKeyToAccount(key).address;
 const client = createPublicClient({ chain, transport: http(rpcUrl) });
 if ((await client.getChainId()) !== chain.id)
   throw new Error("RPC chain does not match the selected test network.");
+
+// A public deployment is the app's identity: wallets and evidence refer to it. A rerun
+// checks the existing record instead of deploying a new app, unless --replace is given.
+if (!local && !resume && !replace) {
+  let existing: { address: Address; codeHash: Hex } | undefined;
+  try {
+    existing = JSON.parse(await readFile(path, "utf8"));
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;
+  }
+  if (existing) {
+    const code = await client.getCode({ address: existing.address });
+    if (!code || keccak256(code) !== existing.codeHash)
+      throw new Error(
+        `${path} does not match the code on chain. Rerun with --replace to deploy a new app.`,
+      );
+    console.log(
+      `${path} matches the code on chain. Nothing was deployed. Rerun with --replace to deploy a new app.`,
+    );
+    process.exit(0);
+  }
+}
 if (local)
   await client.request({
     method: "anvil_setBalance" as never,
@@ -108,7 +134,7 @@ try {
         resolve(secrets, "keystore.json"),
         "--password-file",
         resolve(secrets, "password"),
-        ...(process.argv.includes("--resume") ? ["--resume"] : []),
+        ...(resume ? ["--resume"] : []),
       ],
       { stdio: "inherit" },
     );
@@ -160,14 +186,13 @@ const [token, code] = await Promise.all([
 if (!code) throw new Error("Deployed bytecode not available.");
 const record = {
   chainId: chain.id,
-  rpcUrl,
+  rpcUrl: publicRpcUrl,
   address,
   token,
   deploymentBlock: BigInt(receipt.blockNumber).toString(),
   codeHash: keccak256(code),
   faucetUrl: network.faucetUrl,
 };
-const path = local ? resolve("public", "local.json") : deploymentPath;
 await mkdir(resolve(path, ".."), { recursive: true });
 await writeFile(path, JSON.stringify(record, null, 2) + "\n");
 console.log(
