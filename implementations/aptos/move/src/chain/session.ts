@@ -42,6 +42,8 @@ const schema = z.object({
       raw: z.string(),
       hash: z.string().regex(/^0x[0-9a-f]{64}$/),
       preparedVersion: z.string().regex(/^\d+$/),
+      // The ledger version that committed it, once known. Reads use it.
+      committedVersion: z.string().regex(/^\d+$/).optional(),
       confirmed: z.boolean(),
     }),
   ),

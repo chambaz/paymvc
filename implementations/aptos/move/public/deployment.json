@@ -2,12 +2,12 @@
   "network": "testnet",
   "rpcUrl": "https://api.testnet.aptoslabs.com/v1",
   "chainId": 2,
-  "package": "0xdadd38451ec4fcbd777ca78bb59b6919c8bf214df6f80a50be6b31a8f52918f2",
-  "metadata": "0x129a2d2a107d9474cd3343fffa3c2f7bb269543bcd727ed5fcdcfcc3f35492a7",
+  "package": "0xdb7d6a58860f7949d1ecfa31384cd848deb32aef6c037936c327beb5df8cd37b",
+  "metadata": "0x912897fc60731399c889bb7f0769743ddd59d99bccc439161d0cd83dcdb271b5",
   "modules": {
-    "credits": "56ca92e30962f736d5d3abd91060abcf92fda5504a27fbdae15a8472983059ef",
-    "paymvc": "3d57edd81a8d09d11a271ab6f926aa1033fffe067f7d806420d5651a18116087"
+    "credits": "afef46a338a36bcad3f91cfd078e0a67285a9e4e522882358f5f245e45379351",
+    "paymvc": "5023428cb9d47baba1a40ab381a713ee7d991eeb9a394e4b9db00e73b9b360ee"
   },
-  "publishHash": "0x230bf8fcfedfc2ed817cb5f24688d521d98d8f610ef242e77680a17b8c7a1122",
+  "publishHash": "0x2f419ebe49c15747f758510a7de672f3cc84b7bab31e8d3740c3f4d6594b3e70",
   "faucetUrl": "https://aptos.dev/network/faucet"
 }

@@ -17,6 +17,7 @@ import {
 import {
   payments,
   buildCall,
+  buildRaw,
   MAX_GAS_AMOUNT,
   readDashboard,
   readEntry,
@@ -34,6 +35,7 @@ const config = () =>
       ),
     ),
     live ? process.env.VITE_RPC_URL : undefined,
+    live ? process.env.VITE_APTOS_API_KEY : undefined,
   );
 function save(path: string, value: unknown) {
   writeFileSync(`${path}.tmp`, JSON.stringify(value), { mode: 0o600 });
@@ -387,9 +389,18 @@ test("failed payments roll back state and competing resolutions settle once", as
       persist(s),
       () => {},
       label,
-      (ledger) => buildCall(c, s, ledger, name, args),
+      // Unchecked, so that the failures land on chain and prove the rollback.
+      (ledger) => buildRaw(c, s, ledger, name, args),
     );
   const requester = accountFor(a).address;
+  // The app's own builder refuses the same overspend before signing.
+  await expect(
+    buildCall(c, a, await server(c).getLedgerInfo(), "send", [
+      accountFor(b).address,
+      101n,
+      operationBytes(op(1)),
+    ]),
+  ).rejects.toThrow("Not enough demo credits or APT for gas");
   await expect(
     submit(a, "overspend", "send", [
       accountFor(b).address,

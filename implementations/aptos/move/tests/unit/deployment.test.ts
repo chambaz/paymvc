@@ -30,7 +30,13 @@ beforeEach(() => {
   client.getLedgerInfo.mockResolvedValue({ chain_id: 2 });
   client.getAccountModule.mockResolvedValue({ bytecode: "0x1234" });
   client.getAccountResource.mockResolvedValue({
-    packages: [{ name: "paymvc", upgrade_policy: { policy: 2 } }],
+    packages: [
+      {
+        name: "paymvc",
+        upgrade_policy: { policy: 2 },
+        modules: [{ name: "credits" }, { name: "paymvc" }],
+      },
+    ],
   });
   client.view.mockResolvedValue([{ inner: "0xb" }]);
 });
@@ -46,7 +52,13 @@ it("shares successful immutable verification and rechecks a new configuration", 
 it("does not cache failed verification or accept an upgradeable package", async () => {
   const c = await config();
   client.getAccountResource.mockResolvedValueOnce({
-    packages: [{ name: "paymvc", upgrade_policy: { policy: 1 } }],
+    packages: [
+      {
+        name: "paymvc",
+        upgrade_policy: { policy: 1 },
+        modules: [{ name: "credits" }, { name: "paymvc" }],
+      },
+    ],
   });
   await expect(verifyDeployment(c)).rejects.toThrow("verification failed");
   await verifyDeployment(c);

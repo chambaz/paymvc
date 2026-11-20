@@ -4,6 +4,8 @@ module paymvc::paymvc_tests {
     use std::option;
     use std::signer;
     use aptos_framework::account;
+    use aptos_framework::event;
+    use aptos_framework::fungible_asset;
     use aptos_framework::primary_fungible_store;
     use paymvc::credits::metadata;
     use paymvc::paymvc::{
@@ -257,5 +259,68 @@ module paymvc::paymvc_tests {
         setup(publisher, a, b);
         request(a, @0xb, 101, op(1));
         approve(b, @0xa, op(1));
+    }
+
+    #[test(publisher = @paymvc, a = @0xa, b = @0xb)]
+    fun credits_have_zero_decimals_and_one_allocation_each(
+        publisher: &signer, a: &signer, b: &signer
+    ) {
+        setup(publisher, a, b);
+        assert!(fungible_asset::decimals(metadata()) == 0);
+        assert!(fungible_asset::supply(metadata()) == option::some(200));
+    }
+
+    #[test(publisher = @paymvc, a = @0xa, b = @0xb)]
+    #[expected_failure(abort_code = 2, location = paymvc::paymvc)]
+    fun request_to_unregistered_payer(publisher: &signer, a: &signer, b: &signer) {
+        setup(publisher, a, b);
+        request(a, @0xc, 5, op(1));
+    }
+
+    #[test(publisher = @paymvc, a = @0xa, b = @0xb)]
+    #[expected_failure(abort_code = 5, location = paymvc::paymvc)]
+    fun long_operation(publisher: &signer, a: &signer, b: &signer) {
+        setup(publisher, a, b);
+        let operation = op(1);
+        operation.push_back(1);
+        send(a, @0xb, 5, operation);
+    }
+
+    #[test(publisher = @paymvc, a = @0xa, b = @0xb, c = @0xc)]
+    #[expected_failure(abort_code = 8, location = paymvc::paymvc)]
+    fun stranger_cannot_approve(publisher: &signer, a: &signer, b: &signer, c: &signer) {
+        setup(publisher, a, b);
+        request(a, @0xb, 5, op(1));
+        approve(c, @0xa, op(1));
+    }
+
+    #[test(publisher = @paymvc, a = @0xa, b = @0xb)]
+    #[expected_failure(abort_code = 7, location = paymvc::paymvc)]
+    fun approve_with_the_wrong_requester(publisher: &signer, a: &signer, b: &signer) {
+        setup(publisher, a, b);
+        request(a, @0xb, 5, op(1));
+        approve(b, @0xb, op(1));
+    }
+
+    #[test(publisher = @paymvc, a = @0xa, b = @0xb)]
+    fun approval_keeps_the_request_in_place(publisher: &signer, a: &signer, b: &signer) {
+        setup(publisher, a, b);
+        request(a, @0xb, 5, op(1));
+        send(a, @0xb, 1, op(2));
+        approve(b, @0xa, op(1));
+        let page = activity(@0xb, 2, 50);
+        assert!(activity_count(@0xb) == 2);
+        assert!(paymvc::operation(&page[0]) == op(2));
+        assert!(paymvc::operation(&page[1]) == op(1) && paymvc::is_paid(&page[1]));
+    }
+
+    #[test(publisher = @paymvc, a = @0xa, b = @0xb)]
+    fun events_describe_each_change(publisher: &signer, a: &signer, b: &signer) {
+        setup(publisher, a, b);
+        assert!(event::was_event_emitted(&paymvc::registered_event(@0xa)));
+        request(a, @0xb, 20, op(1));
+        assert!(event::was_event_emitted(&paymvc::created_event(@0xa, @0xb, op(1), 20, true)));
+        decline(b, @0xa, op(1));
+        assert!(event::was_event_emitted(&paymvc::resolved_event(@0xa, op(1), false)));
     }
 }

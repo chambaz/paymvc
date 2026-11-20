@@ -24,26 +24,49 @@ const schema = z.object({
   publishHash: z.string().regex(/^0x[0-9a-f]{64}$/),
   faucetUrl: z.url(),
 });
-export type Deployment = z.infer<typeof schema>;
+/** `apiKey` is a provider key sent as a bearer token. It is not part of the record. */
+export type Deployment = z.infer<typeof schema> & { apiKey?: string };
 /**
  * `rpcUrl` replaces the public endpoint, for example with a keyed provider URL
- * from `VITE_RPC_URL`. The public Aptos API rate-limits anonymous browsers.
- * Sessions do not depend on the RPC URL, so switching keeps them.
+ * from `VITE_RPC_URL`. `apiKey` is a key that the provider expects in the
+ * Authorization header (Geomi), from `VITE_APTOS_API_KEY`. The public Aptos API
+ * rate-limits anonymous browsers. Sessions do not depend on either, so
+ * switching keeps them.
  */
-export const parseDeployment = (value: unknown, rpcUrl?: string) =>
-  schema.parse(rpcUrl ? { ...(value as object), rpcUrl } : value);
+export function parseDeployment(
+  value: unknown,
+  rpcUrl?: string,
+  apiKey?: string,
+): Deployment {
+  const record = schema.parse(
+    rpcUrl ? { ...(value as object), rpcUrl } : value,
+  );
+  return apiKey ? { ...record, apiKey } : record;
+}
 export const deploymentKey = (c: Deployment) =>
   `paymvc:aptos:v2:${c.chainId}:${c.package}:${c.publishHash}`;
-export const server = (c: Pick<Deployment, "rpcUrl" | "network">) =>
-  new Aptos(
-    new AptosConfig({
-      network: c.network === "testnet" ? Network.TESTNET : Network.LOCAL,
-      fullnode: c.rpcUrl,
-    }),
-  );
+const clients = new Map<string, Aptos>();
+/** One client per endpoint and key, shared by reads and writes. */
+export function server(c: Pick<Deployment, "rpcUrl" | "network" | "apiKey">) {
+  const id = `${c.network}:${c.rpcUrl}:${c.apiKey ?? ""}`;
+  let client = clients.get(id);
+  if (!client) {
+    client = new Aptos(
+      new AptosConfig({
+        network: c.network === "testnet" ? Network.TESTNET : Network.LOCAL,
+        fullnode: c.rpcUrl,
+        clientConfig: c.apiKey ? { API_KEY: c.apiKey } : undefined,
+      }),
+    );
+    clients.set(id, client);
+  }
+  return client;
+}
 // Aptos.getLedgerInfo caches its result for 10 seconds. A read snapshot must
 // include the user's latest transaction, so this reads the node directly.
-export async function latestLedger(c: Pick<Deployment, "rpcUrl" | "network">) {
+export async function latestLedger(
+  c: Pick<Deployment, "rpcUrl" | "network" | "apiKey">,
+) {
   const { data } = await getAptosFullNode<{}, LedgerInfo>({
     aptosConfig: server(c).config,
     originMethod: "getLedgerInfo",
