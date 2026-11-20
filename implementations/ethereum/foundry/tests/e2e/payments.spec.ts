@@ -707,3 +707,50 @@ test("a read-only tab cannot recheck a saved request response", async ({
   ).toBeDisabled();
   await page.unrouteAll({ behavior: "wait" });
 });
+
+test("a saved request response stays recoverable when its row is not loaded", async ({
+  page,
+}) => {
+  const requester = newSession(config);
+  await fund(accountFor(requester).address);
+  const app = payments(
+    config,
+    requester,
+    () => {},
+    () => {},
+  );
+  await app.setup();
+  const payer = await start(page);
+  const request = (index: number) =>
+    app.execute({
+      action: "request",
+      recipient: payer,
+      amount: "5",
+      id: "",
+      operation: operationId(`unloaded-${index}`),
+    });
+  await request(0);
+  await refresh(page);
+  // The approval cannot be broadcast, so it stays saved and unresolved.
+  await page.route(config.rpcUrl, async (route) =>
+    route.request().postDataJSON().method === "eth_sendRawTransaction"
+      ? route.abort("failed")
+      : route.continue(),
+  );
+  await page.getByRole("button", { name: "Approve", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "Recheck original operation" }),
+  ).toBeEnabled();
+  await page.unrouteAll({ behavior: "wait" });
+  // 50 newer requests move the saved request out of the first activity page.
+  for (let index = 1; index <= 50; index++) await request(index);
+  await page.reload();
+  await expect(page.getByTestId("activity-row")).toHaveCount(50);
+  const recheck = page.getByRole("button", {
+    name: "Recheck original operation",
+  });
+  await expect(recheck).toHaveCount(1);
+  await recheck.click();
+  await expect(recheck).toHaveCount(0);
+  await expect(page.getByTestId("balance")).toHaveText("95");
+});
