@@ -2,7 +2,8 @@
 module paymvc::paymvc_tests;
 
 use paymvc::credits::{Self, CREDITS};
-use paymvc::paymvc::{Self, App, new_entry};
+use paymvc::paymvc::{Self, App, Created, Registered, Resolved, new_entry};
+use sui::event;
 use sui::coin::{Self, Coin};
 use sui::test_scenario::{Self as scenario, Scenario};
 
@@ -39,25 +40,18 @@ fun setup(): Scenario {
     s
 }
 
-/// A coin of `value` from the sender's credits. The change goes back to the sender.
+/// A coin of `value`, withdrawn from the sender's address balance as a transaction would.
 fun pay(s: &mut Scenario, value: u64): Coin<CREDITS> {
-    let sender = s.sender();
-    let mut all = coin::zero<CREDITS>(s.ctx());
-    s.ids_for_sender<Coin<CREDITS>>().do!(|id| all.join(s.take_from_sender_by_id(id)));
-    let payment = all.split(value, s.ctx());
-    transfer::public_transfer(all, sender);
-    payment
+    if (value == 0) return coin::zero(s.ctx());
+    let withdrawal = scenario::withdraw_balance_from_address<CREDITS>(s.sender(), value);
+    coin::redeem_funds(withdrawal, s.ctx())
 }
 
+/// Credits arrive in address balances, never as separate coin objects.
 fun balance(s: &mut Scenario, account: address): u64 {
     s.next_tx(account);
-    let mut total = 0;
-    s.ids_for_sender<Coin<CREDITS>>().do!(|id| {
-        let coin = s.take_from_sender_by_id<Coin<CREDITS>>(id);
-        total = total + coin.value();
-        s.return_to_sender(coin);
-    });
-    total
+    assert!(s.ids_for_sender<Coin<CREDITS>>().is_empty());
+    scenario::settled_balance<CREDITS>(account)
 }
 
 fun send(s: &mut Scenario, from: address, to: address, operation: u8, amount: u64) {
@@ -107,7 +101,7 @@ fun canonical_scenario_and_external_transfer() {
     // A plain coin transfer works outside the app and creates no activity.
     s.next_tx(B);
     let coin = pay(&mut s, 3);
-    transfer::public_transfer(coin, A);
+    coin::send_funds(coin, A);
     assert!(balance(&mut s, A) == 85 && balance(&mut s, B) == 115);
 
     s.next_tx(A);
@@ -172,7 +166,7 @@ fun request_reserves_no_funds_and_decline_needs_no_coins() {
     // A gives all its credits to an unregistered account.
     s.next_tx(A);
     let coins = pay(&mut s, 100);
-    transfer::public_transfer(coins, C);
+    coin::send_funds(coins, C);
     assert!(balance(&mut s, A) == 0 && balance(&mut s, C) == 100);
     request(&mut s, B, A, 1, 1_000_000);
     decline(&mut s, A, B, 1);
@@ -196,7 +190,7 @@ fun unregistered_sender_rejected() {
     let mut s = setup();
     s.next_tx(A);
     let coin = pay(&mut s, 5);
-    transfer::public_transfer(coin, C);
+    coin::send_funds(coin, C);
     send(&mut s, C, A, 1, 5);
     s.end();
 }
@@ -347,4 +341,67 @@ fun empty_activity_page_rejected() {
     let app = s.take_shared<App<CREDITS>>();
     app.activity(A, 0, 0);
     abort
+}
+
+#[test, expected_failure(abort_code = paymvc::E_INVALID_AMOUNT)]
+fun send_above_the_limit_rejected() {
+    let mut s = setup();
+    s.next_tx(A);
+    let mut app = s.take_shared<App<CREDITS>>();
+    app.send(B, op(1), coin::mint_for_testing(1_000_001, s.ctx()), s.ctx());
+    scenario::return_shared(app);
+    s.end();
+}
+
+#[test, expected_failure(abort_code = paymvc::E_NOT_PENDING)]
+fun transfer_cannot_be_approved() {
+    let mut s = setup();
+    send(&mut s, A, B, 1, 5);
+    approve(&mut s, B, A, 1, 5);
+    s.end();
+}
+
+#[test]
+fun distinct_operations_with_the_same_values_both_succeed() {
+    let mut s = setup();
+    request(&mut s, A, B, 1, 5);
+    request(&mut s, A, B, 2, 5);
+    send(&mut s, A, B, 3, 5);
+    send(&mut s, A, B, 4, 5);
+    assert!(balance(&mut s, B) == 110);
+    let app = s.take_shared<App<CREDITS>>();
+    assert!(app.activity_count(A) == 4);
+    scenario::return_shared(app);
+    s.end();
+}
+
+#[test]
+fun directory_pages_are_stable_and_bounded() {
+    let mut s = setup();
+    register(&mut s, C);
+    register(&mut s, @0xd);
+    s.next_tx(A);
+    let app = s.take_shared<App<CREDITS>>();
+    assert!(app.profiles(0, 2) == vector[A, B]);
+    assert!(app.profiles(2, 2) == vector[C, @0xd]);
+    assert!(app.profiles(3, 50) == vector[@0xd]);
+    assert!(app.profiles(4, 50).is_empty());
+    // A start far past the end returns an empty page instead of overflowing.
+    assert!(app.profiles(std::u64::max_value!(), 50).is_empty());
+    scenario::return_shared(app);
+    s.end();
+}
+
+#[test]
+fun events_describe_each_change() {
+    let mut s = scenario::begin(A);
+    credits::init_for_testing(s.ctx());
+    register(&mut s, A);
+    assert!(event::events_by_type<Registered>() == vector[paymvc::new_registered(A)]);
+    register(&mut s, B);
+    request(&mut s, A, B, 1, 20);
+    assert!(event::events_by_type<Created>() == vector[paymvc::new_created(A, B, op(1), 20, true)]);
+    decline(&mut s, B, A, 1);
+    assert!(event::events_by_type<Resolved>() == vector[paymvc::new_resolved(A, op(1), false)]);
+    s.end();
 }

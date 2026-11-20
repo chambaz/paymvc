@@ -9,7 +9,7 @@ public struct CREDITS has drop {}
 fun init(witness: CREDITS, ctx: &mut TxContext) {
     let (currency, treasury) = coin_registry::new_currency_with_otw(
         witness, 0, b"PAY".to_string(), b"PayMVC credits".to_string(),
-        b"Testnet demo credits".to_string(), b"".to_string(), ctx,
+        b"Testnet demo credits".to_string(), b"https://paymvc.com/apple-touch-icon.png".to_string(), ctx,
     );
     coin_registry::finalize_and_delete_metadata_cap(currency, ctx);
     paymvc::paymvc::create(treasury, ctx);

@@ -1,4 +1,4 @@
-import { Transaction } from "@mysten/sui/transactions";
+import { Transaction, TransactionDataBuilder } from "@mysten/sui/transactions";
 import { TransactionError } from "@mysten/sui/client";
 import { verifyTransactionSignature } from "@mysten/sui/verify";
 import { fromBase64 } from "@mysten/sui/utils";
@@ -60,6 +60,13 @@ export async function transact(
   progress: Progress,
   label: string,
   build: () => Promise<Transaction>,
+  /**
+   * True when the operation's effect is not on chain. Checked from current state before
+   * an expiry is accepted, because a node can report "not found" for an executed
+   * transaction whose history it no longer keeps. Without it, expiry needs retained
+   * history and two "not found" lookups.
+   */
+  absent?: () => Promise<boolean>,
 ) {
   const client = server(c);
   let record = s.journal[label];
@@ -88,7 +95,7 @@ export async function transact(
     record = {
       raw: signed.bytes,
       signature: signed.signature,
-      hash: await tx.getDigest({ client }),
+      hash: TransactionDataBuilder.getDigestFromBytes(bytes),
       epoch,
       checkpoint: service.checkpointHeight.toString(),
       confirmed: false,
@@ -110,22 +117,46 @@ export async function transact(
   } catch (error) {
     if (!(error instanceof TransactionError) || error.reason !== "notFound")
       throw new UnknownOutcome();
-    const state = await client.getCurrentSystemState();
+    // A failed read proves nothing, so the outcome stays unknown.
+    const unknown = () => {
+      throw new UnknownOutcome();
+    };
+    const state = await client.getCurrentSystemState().catch(unknown);
     if (BigInt(state.systemState.epoch) > BigInt(record.epoch)) {
-      const { response: service } = await client.ledgerService.getServiceInfo(
-        {},
-      );
-      if (
-        service.lowestAvailableCheckpoint === undefined ||
-        service.lowestAvailableCheckpoint > BigInt(record.checkpoint)
-      )
-        throw new UnknownOutcome();
-      // Check again after observing expiry, so a transaction finalized at the boundary is not missed.
-      try {
-        result = await client.getTransaction({ digest: record.hash });
-      } catch (error) {
-        if (!(error instanceof TransactionError) || error.reason !== "notFound")
-          throw new UnknownOutcome();
+      const { response: service } = await Promise.resolve(
+        client.ledgerService.getServiceInfo({}),
+      ).catch(unknown);
+      const covered =
+        service.lowestAvailableCheckpoint !== undefined &&
+        service.lowestAvailableCheckpoint <= BigInt(record.checkpoint);
+      // While history covers the transaction, check again after observing expiry, so a
+      // transaction finalized at the boundary is not missed.
+      if (covered)
+        result = await client
+          .getTransaction({ digest: record.hash })
+          .catch((error: unknown) => {
+            if (
+              !(error instanceof TransactionError) ||
+              error.reason !== "notFound"
+            )
+              throw new UnknownOutcome();
+            return undefined;
+          });
+      if (!result) {
+        // The transaction can no longer execute, so current state decides, also after
+        // history is pruned. A failed read proves nothing either way.
+        if (!absent && !covered) throw new UnknownOutcome();
+        const gone = absent
+          ? await absent().catch(() => {
+              throw new UnknownOutcome();
+            })
+          : true;
+        if (!gone) {
+          // The effect is on chain, so this transaction (the only way to cause it) executed.
+          record.confirmed = true;
+          persist();
+          return record.hash;
+        }
         delete s.journal[label];
         persist();
         throw new ExpiredTransaction();

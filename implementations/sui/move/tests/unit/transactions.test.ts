@@ -30,6 +30,7 @@ const config: Deployment = {
   package: normalizeSuiAddress("1"),
   app: normalizeSuiAddress("2"),
   packageDigest: "test",
+  immutableDigest: "publish",
   faucetUrl: "https://faucet.sui.io/",
 };
 async function saved() {
@@ -121,7 +122,7 @@ it("does not rebroadcast after a failed lookup", async () => {
   ).rejects.toBeInstanceOf(UnknownOutcome);
   expect(client.executeTransaction).not.toHaveBeenCalled();
 });
-it("requires retained history before declaring expiry", async () => {
+it("without a state check, requires retained history before declaring expiry", async () => {
   const s = await saved();
   client.getCurrentSystemState.mockResolvedValue({
     systemState: { epoch: "3" },
@@ -145,6 +146,62 @@ it("checks absence again after expiry before releasing evidence", async () => {
   ).rejects.toBeInstanceOf(ExpiredTransaction);
   expect(client.getTransaction).toHaveBeenCalledTimes(2);
   expect(s.journal.payment).toBeUndefined();
+});
+it("keeps a transaction whose effect is on chain when history no longer has it", async () => {
+  const s = await saved();
+  client.getCurrentSystemState.mockResolvedValue({
+    systemState: { epoch: "3" },
+  });
+  client.ledgerService.getServiceInfo.mockResolvedValue({
+    response: { lowestAvailableCheckpoint: 11n },
+  });
+  const persist = vi.fn();
+  // The node reports "not found", but the state shows the payment happened.
+  const hash = await transact(
+    config,
+    s,
+    persist,
+    () => {},
+    "payment",
+    vi.fn(),
+    async () => false,
+  );
+  expect(hash).toBe(s.journal.payment!.hash);
+  expect(s.journal.payment!.confirmed).toBe(true);
+});
+it("proves expiry from state when history no longer has the transaction", async () => {
+  const s = await saved();
+  client.getCurrentSystemState.mockResolvedValue({
+    systemState: { epoch: "3" },
+  });
+  client.ledgerService.getServiceInfo.mockResolvedValue({
+    response: { lowestAvailableCheckpoint: 11n },
+  });
+  await expect(
+    transact(
+      config,
+      s,
+      vi.fn(),
+      () => {},
+      "payment",
+      vi.fn(),
+      async () => true,
+    ),
+  ).rejects.toBeInstanceOf(ExpiredTransaction);
+  expect(s.journal.payment).toBeUndefined();
+});
+it("keeps the transaction unconfirmed when the state read fails", async () => {
+  const s = await saved();
+  client.getCurrentSystemState.mockResolvedValue({
+    systemState: { epoch: "3" },
+  });
+  const absent = async () => {
+    throw new Error("429 Too Many Requests");
+  };
+  await expect(
+    transact(config, s, vi.fn(), () => {}, "payment", vi.fn(), absent),
+  ).rejects.toBeInstanceOf(UnknownOutcome);
+  expect(s.journal.payment!.confirmed).toBe(false);
 });
 it("accepts a transaction found at the expiry boundary", async () => {
   const s = await saved();
@@ -196,4 +253,36 @@ it.each([
     transact(config, s, vi.fn(), () => {}, "payment", vi.fn()),
   ).rejects.toBeInstanceOf(UnknownOutcome);
   expect(s.journal.payment).toEqual(evidence);
+});
+
+it("reports a failed epoch or history read as an unknown outcome", async () => {
+  const s = await saved();
+  client.getCurrentSystemState.mockRejectedValue(new Error("503"));
+  await expect(
+    transact(
+      config,
+      s,
+      vi.fn(),
+      () => {},
+      "payment",
+      vi.fn(),
+      async () => true,
+    ),
+  ).rejects.toBeInstanceOf(UnknownOutcome);
+  client.getCurrentSystemState.mockResolvedValue({
+    systemState: { epoch: "3" },
+  });
+  client.ledgerService.getServiceInfo.mockRejectedValue(new Error("503"));
+  await expect(
+    transact(
+      config,
+      s,
+      vi.fn(),
+      () => {},
+      "payment",
+      vi.fn(),
+      async () => true,
+    ),
+  ).rejects.toBeInstanceOf(UnknownOutcome);
+  expect(s.journal.payment).toBeDefined();
 });

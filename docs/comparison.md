@@ -41,13 +41,13 @@ To read one implementation, start with `src/app.tsx`, follow `src/hooks/use-demo
 
 Each implementation verifies its network and deployment before its first write. Most cache the result for the page load, because the deployed contracts cannot change.
 
-| Chain   | Checks                                                                                   | Upgradeable |
-| ------- | ---------------------------------------------------------------------------------------- | ----------- |
-| EVM     | Chain ID, contract code hash, token address                                              | No          |
-| Solana  | Genesis hash, program with no upgrade authority, mint authority, decimals, token program | No          |
-| Stellar | Network passphrase, both WASM hashes, token address, decimals                            | No          |
-| Sui     | Chain identifier, package digest, immutable package, shared `App` object type            | No          |
-| Aptos   | Chain ID, both module hashes, asset metadata address, immutable package policy           | No          |
-| Thruput | Network hash, both contract code hashes, the app's credits address, decimals             | No          |
+| Chain   | Checks                                                                                                   | Upgradeable |
+| ------- | -------------------------------------------------------------------------------------------------------- | ----------- |
+| EVM     | Chain ID, contract code hash, token address                                                              | No          |
+| Solana  | Genesis hash, program with no upgrade authority, mint authority, decimals, token program                 | No          |
+| Stellar | Network passphrase, both WASM hashes, token address, decimals                                            | No          |
+| Sui     | Chain identifier, package digest, shared `App` object type (the deploy script destroys the `UpgradeCap`) | No          |
+| Aptos   | Chain ID, both module hashes, asset metadata address, immutable package policy                           | No          |
+| Thruput | Network hash, both contract code hashes, the app's credits address, decimals                             | No          |
 
 The session storage key includes the deployment identity. A new deployment therefore gets new sessions. An RPC-only change keeps them. Solana programs can be upgradeable, so the Solana deployment is deployed with `--final`, and the browser refuses a program that still has an upgrade authority. A new program version gets a new program address.

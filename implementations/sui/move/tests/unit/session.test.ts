@@ -19,6 +19,7 @@ const config: Deployment = {
   package: normalizeSuiAddress("1"),
   app: normalizeSuiAddress("2"),
   packageDigest: "test",
+  immutableDigest: "publish",
   faucetUrl: "https://faucet.sui.io/",
 };
 function storage() {
