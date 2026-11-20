@@ -108,6 +108,8 @@ Run live tests from a clean working tree, so that `revision` is the code that wa
 - each implementation's shared files match the Ethereum implementation
 - each implementation's copies of the test files and schemas match `conformance/`
 - each committed evidence file has a chain run and a desktop and mobile browser run, a passed run ends at 85 and 115 credits with four activity rows each, and no field can hold private material
+- each evidence run's `revision` is in the current branch's history, so the evidence describes code that was merged. This needs the full Git history; CI checks out with `fetch-depth: 0`. Merge pull requests with a merge commit: a squash or rebase merge drops the tested commits from the history, and this check then fails.
+- each implementation's `Caddyfile.template` matches `web/Caddyfile.template` except for `connect-src`, and `connect-src` allows every deployment record's `rpcUrl`
 
 Run it from the repository root for every implementation, or through one implementation's `npm run test:conformance`. It runs only inside the repository. `scripts/validate-manifest.ts`, part of each implementation's `npm run check`, validates `implementation.json` and the evidence files against their schemas.
 
