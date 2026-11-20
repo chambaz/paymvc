@@ -8,17 +8,33 @@ Tests check what users see, not internal layouts. Every implementation runs the 
 
 Two users, A and B, use separate browser contexts. Each creates and funds only its own wallet, registers normally, and finds the other by full address. A and B are test labels only; the app never stores names. Both start with 100 credits and no activity.
 
-| Step | Action                                                               |   A |   B | Activity each |
-| ---- | -------------------------------------------------------------------- | --: | --: | ------------: |
-| 1    | A sends B 7                                                          |  93 | 107 |             1 |
-| 2    | B requests 20 from A; A approves                                     |  73 | 127 |             2 |
-| 3    | B requests 5 from A; A declines                                      |  73 | 127 |             3 |
-| 4    | A requests 9 from B; B approves                                      |  82 | 118 |             4 |
-| 5    | Reload both; identities, requests, balances, and order are unchanged |  82 | 118 |             4 |
-| 6    | B transfers 3 to A outside PayMVC                                    |  85 | 115 |             4 |
-| 7    | Reset A with confirmation; B is unchanged; A's next wallet is new    |     |     |               |
+| Step | Action                                                             |   A |   B | Activity each |
+| ---- | ------------------------------------------------------------------ | --: | --: | ------------: |
+| 1    | A sends B 7                                                        |  93 | 107 |             1 |
+| 2    | B requests 20 from A; A approves                                   |  73 | 127 |             2 |
+| 3    | B requests 5 from A; A declines                                    |  73 | 127 |             3 |
+| 4    | A requests 9 from B; B approves                                    |  82 | 118 |             4 |
+| 5    | Reload A; its identity, requests, balance, and order are unchanged |  82 | 118 |             4 |
+| 6    | B transfers 3 to A outside PayMVC, then B reloads                  |  85 | 115 |             4 |
+| 7    | Reset A with confirmation; B is unchanged; A's next wallet is new  |     |     |               |
 
 Use a fresh local deployment for a fixed contact order. Public runs must allow for other registered users.
+
+### Driver
+
+The scenario calls a `ScenarioDriver`, which each implementation writes for its chain in its browser tests. Each implementation's `test:live:browser` runs the scenario through the same driver against the public testnet. `test:live` runs the same steps without a browser, in a chain script (`scripts/live.ts`). A and B each have their own browser context. For an example, see the canonical test in `implementations/ethereum/foundry/tests/e2e/payments.spec.ts`.
+
+| Method                                      | What it does                                                                                                           |
+| ------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| `start(user)`                               | Selects Create demo wallet, funds the shown address, selects Start demo, and waits for 100 credits and no activity.    |
+| `payment(user, action, amount)`             | Opens the dialog, pastes the other user's full address, enters the amount, submits, and waits for the dialog to close. |
+| `resolve(payer, action)`                    | Selects Approve or Decline on the pending request, then waits until that button is gone.                               |
+| `expectState(user, balance, activityCount)` | Selects Refresh, then waits for the balance and the number of activity rows.                                           |
+| `reload(user)`                              | Reloads the page.                                                                                                      |
+| `externalTransfer()`                        | Transfers 3 credits from B to A with the token directly, not through PayMVC.                                           |
+| `reset(user)`                               | Resets with confirmation, creates a new wallet, and checks that its address is different.                              |
+
+Fund wallets the way the network allows: a local faucet or a funded local account in browser tests, and the public faucet or a funded deployer in live tests.
 
 `conformance/recovery.test.ts` checks the shared recovery policy: one automatic recheck, then explicit action, and no writes after the view unmounts.
 

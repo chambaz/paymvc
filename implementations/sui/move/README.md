@@ -2,7 +2,7 @@
 
 PayMVC on Sui Testnet uses native zero-decimal `Coin<CREDITS>` assets and one disposable wallet per user.
 
-## Run
+## 1. Run
 
 Use Sui CLI 1.83.1 and Node 24.21.0. Install the Testnet CLI with `suiup install sui@testnet` and verify the version before building.
 
@@ -21,7 +21,7 @@ npm run test:e2e
 
 `npm run local` starts a disposable local Sui node, faucet, deployment, and frontend on port 5184. It needs free ports 9000 and 9123. Local startup waits for both the node and faucet. Local tests use real transactions. Run browser suites sequentially.
 
-## Architecture
+## 2. Architecture
 
 The contract has two Move modules:
 
@@ -73,15 +73,15 @@ Payments can combine address-balance withdrawals and owned coin objects. Coin se
 
 [Transactions](src/chain/transactions.ts) handles signed evidence and recovery. No indexer or application backend is required.
 
-## Token model
+## 3. Token model
 
 Credits are a native `Coin<CREDITS>` with zero decimals. `Coin` is the standard fungible token on Sui, so wallets, explorers, and balance reads support it without app code. One coin unit is one whole credit. The mint capability is inside the shared app, and only `register` uses it. Plain coin transfers work outside the app, also to accounts that are not registered. They create no app activity.
 
-## Funding
+## 4. Funding
 
 Use the [Sui faucet](https://faucet.sui.io/) and select Testnet. The faucet may rate-limit requests. The initial estimate is 0.1 SUI for registration, storage, and use; fees can change. Browser users fund their own separate disposable wallets.
 
-## Confirmation and recovery
+## 5. Confirmation and recovery
 
 Before broadcast, the implementation saves signed bytes, signature, digest, expiry epoch, and the preparation checkpoint. A storage failure stops submission. Recovery checks the saved digest and can rebroadcast the same signed bytes. It does not create a replacement payment after a timeout.
 
@@ -93,7 +93,7 @@ A failed broadcast keeps the saved transaction and reports an unknown outcome. M
 
 Web Locks prevent a second tab from writing. Reset removes the current local wallet after confirmation, but does not cancel transactions or remove on-chain records.
 
-## Deploy
+## 6. Deploy
 
 ```sh
 sui client ptb --publish contracts --assign upgrade_cap --move-call 0x2::package::make_immutable upgrade_cap
@@ -107,7 +107,7 @@ Each transaction is signed with `--serialize-signed-transaction` and saved in `.
 
 The Sui package manager does not publish to an ephemeral local chain with `ptb --publish`. Local runs (`npm run local`) use the package manager's `sui client test-publish --build-env testnet` command, then make the package immutable in a second transaction.
 
-## Verification
+## 7. Verification
 
 ```sh
 npm run test:live
@@ -124,7 +124,7 @@ Private user keys stay in `.local/`. Evidence contains no keys or signed transac
 
 `npm run test:conformance` compares the shared files, the test snapshots, and the committed evidence with the repository, so it runs only inside the repository. The local unit and browser suites do not need the repository.
 
-## References
+## 8. References
 
 - [Sui documentation](https://docs.sui.io/)
 - [Sui TypeScript SDK](https://sdk.mystenlabs.com/sui)

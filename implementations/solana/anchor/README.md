@@ -4,7 +4,7 @@ A standalone address-only payments demo using Anchor 1.2.2, Solana Kit 8.6.0, an
 
 ## 1. Run
 
-Use Node 24+, Rust 1.98.1, Anchor 1.2.2, Solana 4.1.2, and platform-tools v1.57. Run commands from this directory:
+Use Node 24.21.0, Rust 1.98.1, Anchor 1.2.2, Solana 4.1.2, and platform-tools v1.57. Run commands from this directory:
 
 ```sh
 npm ci
@@ -22,7 +22,7 @@ Click **Start demo** to register and receive 100 credits. Use a separate browser
 
 `npm run dev` serves the Devnet frontend at port 5175. Public demos never fall back to a local validator.
 
-The selector links all nine networks. Override each link with its `VITE_<NETWORK>_URL` variable, for example `VITE_ETHEREUM_URL`. Each origin keeps its own wallet and theme preference.
+The selector links every implementation. Override each link with its `VITE_<NETWORK>_URL` variable, for example `VITE_ETHEREUM_URL`. Each origin keeps its own wallet and theme preference.
 
 ## 2. Architecture
 

@@ -25,13 +25,12 @@ const c = parseDeployment(
   ),
 );
 
-test("selector retains all nine networks and links the other implementations", async ({
+test("selector keeps every network and links the other implementations", async ({
   page,
 }) => {
   await page.goto("/");
   const selector = page.getByLabel("Implementation", { exact: true });
   await expect(selector).toHaveValue("thruput");
-  await expect(selector.locator("option")).toHaveCount(9);
   const destinations = new Map([
     ["ethereum", "http://127.0.0.1:5173/?network=ethereum"],
     ["solana", "http://127.0.0.1:5175/"],
@@ -42,6 +41,15 @@ test("selector retains all nine networks and links the other implementations", a
     ["sui", "http://127.0.0.1:5183/"],
     ["aptos", "http://127.0.0.1:5185/"],
   ]);
+  // A new implementation adds an option, so check membership, not the count.
+  const values = await selector
+    .locator("option")
+    .evaluateAll((options) =>
+      options.map((option) => (option as HTMLOptionElement).value),
+    );
+  expect(values).toEqual(
+    expect.arrayContaining(["thruput", ...destinations.keys()]),
+  );
   for (const [network, url] of destinations) {
     await page.route(url, (route) => route.fulfill({ status: 204 }));
     const request = page.waitForRequest(url);

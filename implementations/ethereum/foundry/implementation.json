@@ -17,6 +17,6 @@
   "funding": "Select a network, create one wallet, manually fund its displayed native-token budget, then Start demo. ETH on Sepolia, Base Sepolia, and Robinhood Testnet; MON on Monad Testnet. See README.md.",
   "history": "Paginated on-chain PayMVC records; standard token transfers are not indexed.",
   "confirmation": "One successful mined receipt and verified application state. Recheck original receipts on recovery; no irreversible-finality claim.",
-  "hostedUrl": null,
+  "hostedUrl": "https://ethereum.paymvc.com",
   "toolchains": { "node": "24.21.0", "foundry": "1.7.1", "solidity": "0.8.30" }
 }

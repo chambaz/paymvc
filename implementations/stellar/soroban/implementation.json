@@ -6,7 +6,7 @@
   "status": "development",
   "frontend": "src",
   "deployment": "public/deployment.json",
-  "hostedUrl": null,
+  "hostedUrl": "https://stellar.paymvc.com",
   "commands": {
     "install": "npm ci",
     "dev": "npm run dev",
