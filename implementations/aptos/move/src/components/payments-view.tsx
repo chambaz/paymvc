@@ -166,8 +166,11 @@ export function PaymentsView(props: ViewProps) {
     resetting.current = false;
     createButton.current?.focus();
   });
-  // The dialog and the request rows show their own progress and errors.
-  const elsewhere = Boolean(activeRequest || mode);
+  // The dialog and a loaded request row show their own progress and errors. A saved
+  // request response whose row is not loaded keeps its recovery actions on the dashboard.
+  const elsewhere = Boolean(
+    mode || requests.some((row) => row.id === activeRequest),
+  );
   function open(next: PaymentMode, address = "") {
     dialogTrigger.current =
       document.activeElement instanceof HTMLElement
@@ -477,7 +480,10 @@ export function PaymentsView(props: ViewProps) {
                 </div>
                 {requests.length === 0 ? (
                   <p className="text-base text-muted-foreground sm:text-sm">
-                    No pending requests.
+                    {/* Requests come from the loaded activity, so older ones may not show yet. */}
+                    {props.hasMore
+                      ? "No pending requests in the loaded activity. Load more to see older requests."
+                      : "No pending requests."}
                   </p>
                 ) : (
                   <ul role="list" className="divide-y divide-border">
