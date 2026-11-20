@@ -15,11 +15,7 @@ export function App({ config }: { config: Deployment }) {
   const visitor = session ? accountFor(session).address : "";
   const journal = session?.journal ?? {};
   const records = Object.values(journal);
-  const contacts = [
-    ...new Set(
-      demo.contacts.data?.pages.flatMap((page) => page.addresses) ?? [],
-    ),
-  ].map((address) => ({ address }));
+  const contacts = demo.contactAddresses.map((address) => ({ address }));
   const rows: Row[] = (demo.dashboard.data?.entries ?? []).map((entry) => {
     const isFromVisitor = entry.from === visitor;
     const request = entry.kind === "Request";

@@ -457,3 +457,74 @@ test("failed payments roll back state and competing resolutions settle once", as
   expect((await readDashboard(c, b)).balance).toBe(0n);
   expect((await readDashboard(c, a)).count).toBe(2n);
 });
+
+test("a check that fails before signing keeps the form editable", async ({
+  browser,
+  page,
+}) => {
+  test.skip(live, "Runs on the local network only.");
+  const other = await browser.newContext();
+  const recipient = (await start(await other.newPage())).address;
+  await start(page);
+  await page.getByRole("button", { name: "Send", exact: true }).click();
+  const dialog = page.getByRole("dialog");
+  await dialog.getByLabel("Recipient address").fill(recipient);
+  await dialog.getByLabel("Amount", { exact: true }).fill("101");
+  await dialog
+    .getByRole("button", { name: "Send credits", exact: true })
+    .click();
+  await expect(dialog.getByRole("alert")).toContainText(
+    "Not enough demo credits",
+  );
+  await expect(dialog.getByLabel("Amount", { exact: true })).toHaveValue("101");
+  // Nothing was signed, so the form stays editable and the next attempt succeeds.
+  await dialog.getByLabel("Amount", { exact: true }).fill("7");
+  await dialog
+    .getByRole("button", { name: "Send credits", exact: true })
+    .click();
+  await expect(dialog).not.toBeVisible();
+  await expect(page.getByTestId("balance")).toHaveText("93");
+  await other.close();
+});
+
+test("storage failure stops before funding", async ({ page }) => {
+  await page.addInitScript(() => {
+    Storage.prototype.setItem = () => {
+      throw new Error("Storage blocked");
+    };
+  });
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Create demo wallet", exact: true })
+    .click();
+  await expect(
+    page.getByText(
+      "Browser storage is unavailable. Enable storage before continuing.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(page.getByTestId("funding-address")).not.toBeVisible();
+});
+
+test("unreadable browser storage stops before a wallet is created", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Storage.prototype.getItem = () => {
+      throw new DOMException("Storage blocked", "SecurityError");
+    };
+  });
+  await page.goto("/");
+  const message = page.getByRole("alert").filter({
+    hasText: "Browser storage is unavailable",
+  });
+  await expect(message).toBeVisible();
+  await page
+    .getByRole("button", { name: "Create demo wallet", exact: true })
+    .click();
+  await expect(message).toBeVisible();
+  await expect(page.getByTestId("funding-address")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Reset Demo", exact: true }),
+  ).toHaveCount(0);
+});

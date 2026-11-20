@@ -32,6 +32,7 @@ export function useDemo(config: Deployment) {
   const current = useRef<Session | null>(null);
   const [loaded, setLoaded] = useState(false);
   const [corrupt, setCorrupt] = useState(false);
+  const [storageBlocked, setStorageBlocked] = useState(false);
   const [writer, setWriter] = useState(false);
   const [busy, setBusy] = useState(false);
   const running = useRef(false);
@@ -49,10 +50,22 @@ export function useDemo(config: Deployment) {
     mounted.current = true;
     let cancelled = false;
     let release: (() => void) | undefined;
+    // Only a read-only tab reloads the saved session. The writer tab's copy is
+    // the one that its running operation changes and saves.
+    let holding = false;
     const waiting = new AbortController();
     const restore = () => {
       try {
+        localStorage.getItem(key);
+      } catch {
+        setStorageBlocked(true);
+        setError(storageMessage);
+        setLoaded(true);
+        return;
+      }
+      try {
         const saved = loadSession(config);
+        if (addressOf(saved) !== addressOf(current.current)) limit.current = 50;
         current.current = saved;
         setSession(saved);
         setCorrupt(false);
@@ -71,8 +84,13 @@ export function useDemo(config: Deployment) {
       }
       setLoaded(true);
     };
+    const follow = (event: StorageEvent) => {
+      // A null key means that another tab cleared all storage.
+      if (holding || (event.key !== null && event.key !== key)) return;
+      restore();
+    };
     restore();
-    window.addEventListener("storage", restore);
+    window.addEventListener("storage", follow);
     if (!navigator.locks) {
       setError(
         "This browser cannot protect a demo across tabs. Use a browser with Web Locks support.",
@@ -80,6 +98,7 @@ export function useDemo(config: Deployment) {
     } else {
       const hold = async (lock: Lock | null) => {
         if (!lock || cancelled) return false;
+        holding = true;
         restore();
         setWriter(true);
         await new Promise<void>((resolve) => {
@@ -102,7 +121,7 @@ export function useDemo(config: Deployment) {
       cancelled = true;
       waiting.abort();
       release?.();
-      window.removeEventListener("storage", restore);
+      window.removeEventListener("storage", follow);
     };
   }, [key, config]);
 
@@ -132,10 +151,14 @@ export function useDemo(config: Deployment) {
     retry: 1,
   });
 
-  function persist() {
-    if (!current.current) return;
-    saveSession(current.current);
-    setSession({ ...current.current });
+  // Saves the session object that an operation changes, so that the signed
+  // transaction it holds is on disk before broadcast.
+  function persistFor(target: Session) {
+    return () => {
+      saveSession(target);
+      current.current = target;
+      setSession({ ...target });
+    };
   }
   async function run(task: () => Promise<void>) {
     if (!writer || running.current) return false;
@@ -149,11 +172,7 @@ export function useDemo(config: Deployment) {
       return true;
     } catch (error) {
       setError(readableError(error));
-      setUnknown(
-        error instanceof UnknownOutcome ||
-          error instanceof BroadcastUnavailable ||
-          error instanceof ResultPending,
-      );
+      setUnknown(unresolved(error));
       return false;
     } finally {
       running.current = false;
@@ -162,6 +181,7 @@ export function useDemo(config: Deployment) {
   }
   async function start() {
     return run(async () => {
+      if (storageBlocked) throw new Error(storageMessage);
       if (corrupt)
         throw new Error("Reset the unreadable session before starting again.");
       if (!current.current) {
@@ -172,8 +192,9 @@ export function useDemo(config: Deployment) {
         setMessage("");
         return;
       }
+      const saved = current.current;
       await recheckOnce(
-        () => payments(config, current.current!, persist, setMessage).setup(),
+        () => payments(config, saved, persistFor(saved), setMessage).setup(),
         (error) =>
           error instanceof UnknownOutcome || error instanceof ResultPending,
         () => setMessage("Checking your saved setup"),
@@ -188,17 +209,33 @@ export function useDemo(config: Deployment) {
       if (!saved) throw new Error("Start a demo first.");
       if (saved.intent && saved.intent.operation !== intent.operation)
         throw new Error("Resolve the previous operation first.");
+      const save = persistFor(saved);
+      // True once a transaction for this operation has been signed and saved.
+      let signed = hasRecords(saved, intent.operation);
+      const persist = () => {
+        signed ||= hasRecords(saved, intent.operation);
+        save();
+      };
       saved.intent = intent;
       persist();
-      await recheckOnce(
-        () => payments(config, saved, persist, setMessage).execute(intent),
-        (error) => error instanceof ResultPending,
-        () => setMessage("Checking the saved payment result"),
-        () => mounted.current,
-      );
+      try {
+        await recheckOnce(
+          () => payments(config, saved, persist, setMessage).execute(intent),
+          (error) => error instanceof ResultPending,
+          () => setMessage("Checking the saved payment result"),
+          () => mounted.current,
+        );
+      } catch (error) {
+        // A check before signing failed, so nothing can reach the chain.
+        // Release the operation, so that the form stays editable.
+        if (!signed && !unresolved(error)) {
+          saved.intent = null;
+          persist();
+        }
+        throw error;
+      }
       // The effect is verified on-chain, so the saved transactions are no longer needed.
-      for (const label of Object.keys(saved.journal))
-        if (label.startsWith(intent.operation)) delete saved.journal[label];
+      forget(saved, intent.operation);
       saved.intent = null;
       persist();
       setMessage("");
@@ -206,18 +243,18 @@ export function useDemo(config: Deployment) {
   }
   function dismissFailed() {
     const saved = current.current;
-    if (!saved || running.current || !writer) return;
+    if (!saved?.intent || running.current || !writer) return;
+    const { operation } = saved.intent;
     // Only unbroadcast or definitively reverted operations may be dismissed.
     if (
       Object.entries(saved.journal).some(
-        ([label, record]) =>
-          label.startsWith(saved.intent?.operation ?? "unused:") &&
-          !record.confirmed,
+        ([label, record]) => label.startsWith(operation) && !record.confirmed,
       )
     )
       return;
+    forget(saved, operation);
     saved.intent = null;
-    persist();
+    persistFor(saved)();
     setError("");
   }
   function reset() {
@@ -239,6 +276,7 @@ export function useDemo(config: Deployment) {
     limit.current = 50;
     cache.removeQueries({ queryKey: ["dashboard", key] });
     cache.removeQueries({ queryKey: ["contacts", key] });
+    cache.removeQueries({ queryKey: ["funding", key] });
   }
   return {
     session,
@@ -251,15 +289,47 @@ export function useDemo(config: Deployment) {
     unknown,
     dashboard,
     contacts,
+    // Directory pages can overlap when registrations arrive between reads.
+    contactAddresses: [
+      ...new Set(contacts.data?.pages.flatMap((page) => page.addresses) ?? []),
+    ],
     funding,
     start,
     act,
     reset,
     dismissFailed,
     more: () => {
+      if (dashboard.isFetching) return;
       limit.current += 50;
       void dashboard.refetch();
     },
     refresh: () => Promise.all([dashboard.refetch(), contacts.refetch()]),
   };
+}
+
+const storageMessage =
+  "Browser storage is unavailable. Enable storage for this site, then reload. No wallet was created.";
+
+/** The outcome is not known yet, so the operation must stay saved. */
+function unresolved(error: unknown) {
+  return (
+    error instanceof UnknownOutcome ||
+    error instanceof BroadcastUnavailable ||
+    error instanceof ResultPending
+  );
+}
+
+function hasRecords(session: Session, operation: string) {
+  return Object.keys(session.journal).some((label) =>
+    label.startsWith(operation),
+  );
+}
+
+function forget(session: Session, operation: string) {
+  for (const label of Object.keys(session.journal))
+    if (label.startsWith(operation)) delete session.journal[label];
+}
+
+function addressOf(session: Session | null) {
+  return session ? accountFor(session).address : null;
 }

@@ -223,11 +223,15 @@ test("failure retains inputs and stale reads retain the balance", async ({
     "Not enough demo credits",
   );
   await expect(page.getByLabel("Amount", { exact: true })).toHaveValue("101");
-  await page.keyboard.press("Escape");
+  // Nothing was signed, so the form stays editable and the next attempt succeeds.
+  await page.getByLabel("Amount", { exact: true }).fill("7");
+  await page.getByRole("button", { name: "Send credits", exact: true }).click();
+  await expect(page.getByRole("dialog")).not.toBeVisible();
+  await expect(page.getByTestId("balance")).toHaveText("93");
   await page.route(c.rpcUrl, (route) => route.abort());
   await refresh(page);
   await expect(page.getByText("Balance may be out of date")).toBeVisible();
-  await expect(page.getByTestId("balance")).toHaveText("100");
+  await expect(page.getByTestId("balance")).toHaveText("93");
   await page.unrouteAll({ behavior: "wait" });
 });
 test("light and dark address-only UI is accessible and fits the viewport", async ({
@@ -248,4 +252,46 @@ test("light and dark address-only UI is accessible and fits the viewport", async
       ),
     ).toBe(true);
   }
+});
+
+test("storage failure stops before funding", async ({ page }) => {
+  await page.addInitScript(() => {
+    Storage.prototype.setItem = () => {
+      throw new Error("Storage blocked");
+    };
+  });
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Create demo wallet", exact: true })
+    .click();
+  await expect(
+    page.getByText(
+      "Browser storage is unavailable. Enable storage before continuing.",
+      { exact: true },
+    ),
+  ).toBeVisible();
+  await expect(page.getByTestId("funding-address")).not.toBeVisible();
+});
+
+test("unreadable browser storage stops before a wallet is created", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Storage.prototype.getItem = () => {
+      throw new DOMException("Storage blocked", "SecurityError");
+    };
+  });
+  await page.goto("/");
+  const message = page.getByRole("alert").filter({
+    hasText: "Browser storage is unavailable",
+  });
+  await expect(message).toBeVisible();
+  await page
+    .getByRole("button", { name: "Create demo wallet", exact: true })
+    .click();
+  await expect(message).toBeVisible();
+  await expect(page.getByTestId("funding-address")).toHaveCount(0);
+  await expect(
+    page.getByRole("button", { name: "Reset Demo", exact: true }),
+  ).toHaveCount(0);
 });

@@ -150,13 +150,15 @@ export const shortAddress = (value: string) =>
   value ? `${value.slice(0, 4)}...${value.slice(-4)}` : "";
 
 function Feedback(props: ViewProps) {
-  if (
-    !props.message &&
-    !props.stale &&
-    !props.readOnly &&
-    !props.error &&
-    !props.pending
-  )
+  // After a reload, an unresolved operation has no error text yet.
+  const problem =
+    props.error ||
+    (props.pending && !props.busy
+      ? props.unknown
+        ? "The network has not confirmed your last operation. Recheck it before you start another. It will not be sent twice."
+        : "Your last operation is unresolved. Recheck it, or dismiss it to continue."
+      : "");
+  if (!props.message && !props.stale && !props.readOnly && !problem)
     return null;
   return (
     <div className="flex flex-col gap-3" aria-label="Demo status">
@@ -189,12 +191,12 @@ function Feedback(props: ViewProps) {
           </AlertDescription>
         </Alert>
       ) : null}
-      {props.error ? (
+      {problem ? (
         <Alert variant="destructive">
           <AlertTitle>
             {props.unknown ? "Outcome unknown" : "A step needs attention"}
           </AlertTitle>
-          <AlertDescription>{props.error}</AlertDescription>
+          <AlertDescription>{problem}</AlertDescription>
         </Alert>
       ) : null}
       {props.pending && !props.busy ? (
