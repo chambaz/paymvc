@@ -3,12 +3,12 @@
   "implementation": "aptos-move",
   "network": "testnet",
   "deployment": {
-    "package": "0xdadd38451ec4fcbd777ca78bb59b6919c8bf214df6f80a50be6b31a8f52918f2",
-    "metadata": "0x129a2d2a107d9474cd3343fffa3c2f7bb269543bcd727ed5fcdcfcc3f35492a7"
+    "package": "0xdb7d6a58860f7949d1ecfa31384cd848deb32aef6c037936c327beb5df8cd37b",
+    "metadata": "0x912897fc60731399c889bb7f0769743ddd59d99bccc439161d0cd83dcdb271b5"
   },
   "chain": {
-    "revision": "aaa5b3a897f658c02a2cc971726e29843e8d30b9",
-    "date": "2026-11-14T00:04:52.804Z",
+    "revision": "13df028cdb2aa7889af23bc935453d37b6b3ca74",
+    "date": "2026-11-20T02:38:39.183Z",
     "result": "passed",
     "balances": {
       "a": "85",
@@ -21,58 +21,58 @@
     "transactions": [
       {
         "step": "fund-a",
-        "hash": "0x1d22441d2997af695ea000cad582aec9de1c7599821d021b174565690f280884"
+        "hash": "0x091a723f1f0f0252378eb661e64beb932435911103d4d2caeacfe3073b3ba301"
       },
       {
         "step": "register-a",
-        "hash": "0x650925594e23b8fc5de98a1fba6c57510aa360e23122aa79ec81a2bbc5c9c5e5"
+        "hash": "0x8302fe08b46f513a36d2616cf2843aa780fc9ae4f4a4dcef5a77472b7e371112"
       },
       {
         "step": "fund-b",
-        "hash": "0x15f021ce31d2eafc98f8fa38e440fe6d692bcf4376be1e068ca1eee35cd6ca73"
+        "hash": "0xe0f0eb28704465ce2dbd96fdbc39478f245d917b38d62e9c7c69d2f671cbfa7d"
       },
       {
         "step": "register-b",
-        "hash": "0x440287d894625dae54cca78fb6cb9f1e06de61c9e0818c7bda6aa36c2b776e27"
+        "hash": "0x7eb968dc271885d3a55c1d962414b78d5f2143ebcbf4bbfde96700827e3e0bba"
       },
       {
         "step": "send7",
-        "hash": "0xe7087b59e97fababbc944d4fe71699892cd35f923b95365b64510de58a5d4754"
+        "hash": "0x8bacd487cf31e0715138f44d82c352160c94cc55944ff6991fc8c031290a8356"
       },
       {
         "step": "request20",
-        "hash": "0x63a0291cb6389a69ddd7a119eb61e80068fbfae95b014a48c464e61253639baa"
+        "hash": "0xdf7bff470ac9fa2cd978aea11df439912cd97605e2a41dc118c113a907be318a"
       },
       {
         "step": "approve20",
-        "hash": "0xabc7b8ff5b57ef5e28db787544100b631192bb5a130e5fb94dc1353eded8c713"
+        "hash": "0xb6015d8b16f61e46d23846369767975901d566961f8730c63c6be54cc72c024b"
       },
       {
         "step": "request5",
-        "hash": "0xaafd7aa930e2d9d81b1640a8ed9da1711dd5fe2229553463b2686c0be7c00034"
+        "hash": "0xf19e29bb2d8b00baab38d84de0c835620661ae27d91d689ba33afca285cdbc3a"
       },
       {
         "step": "decline5",
-        "hash": "0xd6ac6ac1e076d58a0c7504708fce86e6b67a460f59d99ea12a92a2854322b651"
+        "hash": "0x5a91ffc76b40eb68f428cc8c6ada66eac4daa5ba626cd667b3746627dced2caf"
       },
       {
         "step": "request9",
-        "hash": "0x7d7f9765469da262f8e62b2d661d84d9a199dc2e5d470bbe1a3cfba7c9c006dc"
+        "hash": "0xdc20df0c01e26589218f20ac75e76dc60811fbc65d07fd326541513fab1aa9af"
       },
       {
         "step": "approve9",
-        "hash": "0x60274043831085c19498617565499551cb537842bf87e042f996bc2a7141a3ea"
+        "hash": "0xd483d26f1b0eb157576201fd6feba5fe228425038e90eb9e936c0f91dfb74419"
       },
       {
         "step": "external3",
-        "hash": "0x2d0f98bd9df70cae6c22018da2469053eee1ce638d679dfa8014694e473a1fc1"
+        "hash": "0x4058e0b08460996fc659cf8a2a88503dc60a1583281592acef5d92ce54d6d2fb"
       }
     ]
   },
   "browser": [
     {
-      "revision": "98931b23e5320bd81028c46b44fdad29921825ab",
-      "date": "2026-11-14T01:19:49.766Z",
+      "revision": "13df028cdb2aa7889af23bc935453d37b6b3ca74",
+      "date": "2026-11-20T13:42:18.313Z",
       "result": "passed",
       "balances": {
         "a": "85",
@@ -85,58 +85,58 @@
       "transactions": [
         {
           "step": "fund-a",
-          "hash": "0x71e8fdd311aa6101af4eb8e4ecc3202177ee26ab4ea51898c53b97b8f140cb87"
+          "hash": "0x86173ac0576f1d2a7cf8f358f0a71a58fa842e933bae6dcce1ce53a733ea76e1"
         },
         {
           "step": "register-a",
-          "hash": "0xa34a1eb574075d0f4e23d342fdd1030ca1b73ac1c1abd6a7f946907c64ffce31"
+          "hash": "0xc051e9d6f4c02326ac739d1d7ffb59e84be9900b9b3347e8a4a9168ef4fa00ea"
         },
         {
           "step": "fund-b",
-          "hash": "0x88f993cf9583245a0751e40f85953be4b2da05fc073b0dbb333efcbe5b8f0894"
+          "hash": "0x9b929d60187ac6df9b6b781102afeaa5193d02de247594a9214378709b8e1e31"
         },
         {
           "step": "register-b",
-          "hash": "0x398b4f85aa4320930fd6467ad6600d21d953b4c9d9a659c9b9cf9602aff56499"
+          "hash": "0xd1b13655914da04664f9979a5872c39cdcbd0d8c2296e658fdb66560f8eecfe7"
         },
         {
           "step": "send7",
-          "hash": "0x6e92446ef1c5c14efaebd01e056f4e35f4381f4d93d7114d7e7da5f71170ece0"
+          "hash": "0x085508ff6c4761944831fd6be21a8f5cf8dfe7d09fe429d9065984be4639c7ba"
         },
         {
           "step": "request20",
-          "hash": "0x70c8c11ff2016e7b8ba6f98c5f3bcbace29f1c7e809c71606b006cd5bfd4eaf8"
+          "hash": "0xcc8331bce2f5d8869e3cb9381d83728229ac9e67a35cf09fe9190775b8022849"
         },
         {
           "step": "approve20",
-          "hash": "0xa4dd652670a33f48621d37877b2f4921f9638bc9a460c7afcee05b974db551ea"
+          "hash": "0x84975e3c237fd4f835b7df074d18754b231d2b91c5b091c6d88f01d57845c2bf"
         },
         {
           "step": "request5",
-          "hash": "0x4b16d32dcc9b2c2f5092ca493e5886ae0d6bdbebddbceb8bbe9536e646035fa7"
+          "hash": "0x366e237bf822ef29186e78308f5c9fb6f4dddc554314cec3c3118581f4f9b425"
         },
         {
           "step": "decline5",
-          "hash": "0x4b7fd001628751d5730908bb6ded1e1ea614626c7cfa57133145468f82576447"
+          "hash": "0xe160a3cc20b35aabbe28f7191e7974bf1fd4786cb1ce37fe7ccf3f45c5dd45d9"
         },
         {
           "step": "request9",
-          "hash": "0xa21754c84da6f7079b1906824708d3f8deff2e9704dc5fd24bf8041762ee0fc3"
+          "hash": "0x1733128034db84b5e5a9882dd15351f7f6b18dbffef57ae68b4bac3d8cd6cd0f"
         },
         {
           "step": "approve9",
-          "hash": "0x09783451350bb21b36dd40a4285c08fcaa8e8e7c9fb33865787eaa83555fe602"
+          "hash": "0x7e1f7b165abb49f6036e71cbaf4b5c4a76b450d84b0212726e848674ec91399f"
         },
         {
           "step": "external3",
-          "hash": "0x2a94de1265e6d938aa520ce165e9edda983c03e47e328232137e0378074dfe68"
+          "hash": "0xa685ee24e00d55b66f3d261ccb3854c7783472e71d2719ac21390dc549f74c65"
         }
       ],
       "viewport": "desktop"
     },
     {
-      "revision": "98931b23e5320bd81028c46b44fdad29921825ab",
-      "date": "2026-11-14T01:20:16.458Z",
+      "revision": "13df028cdb2aa7889af23bc935453d37b6b3ca74",
+      "date": "2026-11-20T13:42:48.032Z",
       "result": "passed",
       "balances": {
         "a": "85",
@@ -149,51 +149,51 @@
       "transactions": [
         {
           "step": "fund-a",
-          "hash": "0x4f5e678454810aae0fdb9e7b958ce5e72e6e8bd5828b378dff3f76788aef2764"
+          "hash": "0x0a744a31f910749a4fb1ccbef97c2a84c823b510c0c1607b9a2a3e21bbc59e3c"
         },
         {
           "step": "register-a",
-          "hash": "0xf787f8fb040fb64db3f2d92b3c10691dd2c3fc0e96fb224bb06c890deeaa2d9e"
+          "hash": "0xb80eae96ac6ec6d307af74cea636a4010d70e6e269b0e249ea22264f00a249b8"
         },
         {
           "step": "fund-b",
-          "hash": "0xf9ecef267489d1b71c488dd26d1a40ac71a92de118b262c0df28519866fd155f"
+          "hash": "0xe6297f501b02e1053d4ac004e5a453a10fa9960910c46e42683b73da6faf2a22"
         },
         {
           "step": "register-b",
-          "hash": "0xbbb0ab54ae756fa5d5012c54d7e6da194c4be1a82e7c15441dd0eb85dfde7b45"
+          "hash": "0x5c5697013a99a92e0400f03b71a3aa0aaa2ff0bf45a9a0850f04a4b38ed849b5"
         },
         {
           "step": "send7",
-          "hash": "0xaa7523f1cdefe44fe3a5cbff2eb9e9dc00394efc6a181cdee7bc4ebbf4725c3b"
+          "hash": "0x09b4f1bbdd9e3e6cbdc5d657feb33036893ea2cad4a64e1d98672243c384e87a"
         },
         {
           "step": "request20",
-          "hash": "0xff26a39801431e1c48125c5982913a9ee686a3fd045c8b7b4317bf620df33590"
+          "hash": "0x5b56480d5e37e8dc14a4b3101b08684d1518b2a894cac50ec72f07eebc94d4c8"
         },
         {
           "step": "approve20",
-          "hash": "0x7779454eb7834855913d5f9856055c81931ec488197c17230c503dbcd61fdd9d"
+          "hash": "0xa53fbfbad681b27130609f24d04348f84fc86c5973f0c5e7630fdc2b848e938c"
         },
         {
           "step": "request5",
-          "hash": "0x6016775991fc6096cd2328a1e48b44fd8155781aef1c85a889571a5ef6295202"
+          "hash": "0xfd162561e43e4e11565332ef3ae43979ab1438493fd3f8c54928d04d1c7cb50e"
         },
         {
           "step": "decline5",
-          "hash": "0x4af37290801af4e75318bb4590791ca779075518fbf7361a2b155510e08a16f1"
+          "hash": "0xf5d03e6205df5f46640fa913f680806582cf6faff47ebac6c8c16f770da767a6"
         },
         {
           "step": "request9",
-          "hash": "0x6145aae97b1798fe97072ba10744cb1a5754db913ac2904edc6f716f548b8a81"
+          "hash": "0x2f02326d644a58fc688f88ee5a6b79ab29ec55acfd86e453d0473f57ca115125"
         },
         {
           "step": "approve9",
-          "hash": "0x9bbf9c5f3994741de60fa9cb9af79003c82cc9c3582e4d08c7b3113f77b8a0e8"
+          "hash": "0x8cf04fc3323b10af84fd300867c7680b1a0a7b3ade7f4ea3dfbd9e70eb77c54b"
         },
         {
           "step": "external3",
-          "hash": "0x27f7590c2d5b84d70d21263045f0ee57d315069876c8408e76d3bb695f17d16b"
+          "hash": "0xd27e73cf9cae7af93a248b464b9e0a0fa2d495a7494ba6ec140e8b840bca0f44"
         }
       ],
       "viewport": "mobile"
