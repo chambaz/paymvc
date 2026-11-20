@@ -69,6 +69,8 @@ async function fund(address: string): Promise<string[]> {
   const hash = await transact(
     c,
     s,
+    () => save(path, { journal: s.journal }),
+    () => {},
     `fund:${address}`,
     () =>
       server(c).transaction.build.simple({
@@ -79,7 +81,6 @@ async function fund(address: string): Promise<string[]> {
         },
         options: { maxGasAmount: MAX_GAS_AMOUNT },
       }),
-    () => save(path, { journal: s.journal }),
   );
   return [hash];
 }
@@ -204,6 +205,8 @@ test("canonical independent-user scenario, external transfer, reload, and reset"
         const hash = await transact(
           c,
           s,
+          () => save(`.local/browser-external-${info.project.name}.json`, s),
+          () => {},
           "external:3",
           () =>
             server(c).transaction.build.simple({
@@ -215,7 +218,6 @@ test("canonical independent-user scenario, external transfer, reload, and reset"
               },
               options: { maxGasAmount: 20000 },
             }),
-          () => save(`.local/browser-external-${info.project.name}.json`, s),
         );
         await pages.b.evaluate(
           ({ key, raw }) => localStorage.setItem(key, raw),
@@ -382,9 +384,10 @@ test("failed payments roll back state and competing resolutions settle once", as
     transact(
       c,
       s,
+      persist(s),
+      () => {},
       label,
       (ledger) => buildCall(c, s, ledger, name, args),
-      persist(s),
     );
   const requester = accountFor(a).address;
   await expect(
@@ -427,6 +430,8 @@ test("failed payments roll back state and competing resolutions settle once", as
       transact(
         c,
         b,
+        persist(b),
+        () => {},
         `race:${action}`,
         () =>
           client.transaction.build.simple({
@@ -441,7 +446,6 @@ test("failed payments roll back state and competing resolutions settle once", as
                 BigInt(account.sequence_number) + BigInt(offset),
             },
           }),
-        persist(b),
       ),
     ),
   );

@@ -2,7 +2,7 @@
 
 All implementations have the same behavior. This page shows where each concept lives and what each platform does differently.
 
-To read one implementation, start with `src/app.tsx`, follow `src/hooks/use-demo.ts` into `src/chain/payments.ts`, then read the contract. `src/chain/transactions.ts` shows signing and recovery. `src/components/payments-view.tsx` is the interface and contains no chain code.
+To read one implementation, start with `src/app.tsx`, follow `src/hooks/use-demo.ts` into `src/chain/payments.ts`, then read the contract. `src/chain/transactions.ts` shows signing and recovery. `src/components/` is the interface and contains no chain code.
 
 ## Where to look
 

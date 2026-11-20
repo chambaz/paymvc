@@ -40,6 +40,7 @@ export function useDemo(config: Deployment) {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [unknown, setUnknown] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   // Rows to read. Outside the query key, so Load more refetches the same query
   // and a failed read keeps the last balance and rows (React Query keeps data on error).
   const limit = useRef(50);
@@ -164,6 +165,8 @@ export function useDemo(config: Deployment) {
     if (!writer || running.current) return false;
     running.current = true;
     setBusy(true);
+    // Progress text belongs to one operation, so a new attempt starts without it.
+    setMessage("");
     setError("");
     setUnknown(false);
     try {
@@ -171,6 +174,7 @@ export function useDemo(config: Deployment) {
       await cache.invalidateQueries({ queryKey: ["dashboard", key] });
       return true;
     } catch (error) {
+      setMessage("");
       setError(readableError(error));
       setUnknown(unresolved(error));
       return false;
@@ -298,10 +302,12 @@ export function useDemo(config: Deployment) {
     act,
     reset,
     dismissFailed,
+    loadingMore,
     more: () => {
-      if (dashboard.isFetching) return;
+      if (loadingMore) return;
       limit.current += 50;
-      void dashboard.refetch();
+      setLoadingMore(true);
+      void dashboard.refetch().finally(() => setLoadingMore(false));
     },
     refresh: () => Promise.all([dashboard.refetch(), contacts.refetch()]),
   };

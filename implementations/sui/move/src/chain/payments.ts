@@ -248,21 +248,15 @@ export function payments(
           if (funding.balance < funding.required) throw new FundingRequired();
         }
         progress("Registering your address and allocating 100 credits");
-        await transact(
-          c,
-          s,
-          "setup:register",
-          async () => {
-            const tx = new Transaction();
-            tx.moveCall({
-              target: `${c.package}::paymvc::register`,
-              typeArguments: [coinType(c)],
-              arguments: [tx.object(c.app)],
-            });
-            return tx;
-          },
-          persist,
-        );
+        await transact(c, s, persist, progress, "setup:register", async () => {
+          const tx = new Transaction();
+          tx.moveCall({
+            target: `${c.package}::paymvc::register`,
+            typeArguments: [coinType(c)],
+            arguments: [tx.object(c.app)],
+          });
+          return tx;
+        });
         if (!(await registered(c, owner))) throw new ResultPending();
       }
       s.ready = true;
@@ -318,27 +312,21 @@ export function payments(
           ? "Approving and paying the request"
           : "Submitting your transaction",
       );
-      await transact(
-        c,
-        s,
-        label,
-        async () => {
-          const tx = new Transaction();
-          // The counterparty: recipient, payer, or requester (checked above).
-          const args = [tx.object(c.app), tx.pure.address(intent.recipient)];
-          if (intent.action === "request") args.push(tx.pure.u64(amount));
-          args.push(tx.pure.vector("u8", fromHex(operation)));
-          if (intent.action === "send" || intent.action === "approve")
-            args.push(await paymentCoin(c, tx, owner, amount));
-          tx.moveCall({
-            target: `${c.package}::paymvc::${intent.action}`,
-            typeArguments: [coinType(c)],
-            arguments: args,
-          });
-          return tx;
-        },
-        persist,
-      );
+      await transact(c, s, persist, progress, label, async () => {
+        const tx = new Transaction();
+        // The counterparty: recipient, payer, or requester (checked above).
+        const args = [tx.object(c.app), tx.pure.address(intent.recipient)];
+        if (intent.action === "request") args.push(tx.pure.u64(amount));
+        args.push(tx.pure.vector("u8", fromHex(operation)));
+        if (intent.action === "send" || intent.action === "approve")
+          args.push(await paymentCoin(c, tx, owner, amount));
+        tx.moveCall({
+          target: `${c.package}::paymvc::${intent.action}`,
+          typeArguments: [coinType(c)],
+          arguments: args,
+        });
+        return tx;
+      });
       if (!(await check())) throw new ResultPending();
     },
   };

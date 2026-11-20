@@ -98,14 +98,21 @@ try {
   await request(b, a, "request-20", "20", "approve");
   await request(b, a, "request-5", "5", "decline");
   await request(a, b, "request-9", "9", "approve");
-  await transact(c, b.session, b.persist, "external", async () => [
-    new Contract(c.token).call(
-      "transfer",
-      new Address(b.address).toScVal(),
-      new Address(a.address).toScVal(),
-      nativeToScVal(3n, { type: "i128" }),
-    ),
-  ]);
+  await transact(
+    c,
+    b.session,
+    b.persist,
+    () => {},
+    "external",
+    async () => [
+      new Contract(c.token).call(
+        "transfer",
+        new Address(b.address).toScVal(),
+        new Address(a.address).toScVal(),
+        nativeToScVal(3n, { type: "i128" }),
+      ),
+    ],
+  );
   const dashboards = await Promise.all([
     readDashboard(c, a.session),
     readDashboard(c, b.session),

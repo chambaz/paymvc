@@ -54,8 +54,10 @@ export async function fund(
   await transact(
     c,
     funder,
-    await verifyDeployment(c),
+    persist,
+    () => {},
     label,
+    await verifyDeployment(c),
     [
       ERC20.v0_1.transfer.invocation(
         NATIVE_TOKEN_ADDRESS,
@@ -63,8 +65,6 @@ export async function fund(
         { receiver: addressFromBase58(address), amount: USER_FUNDING },
       ),
     ],
-    persist,
-    () => {},
     async () => false, // Never replace a funding transfer.
   );
   return funder.journal[label]!.hash;
@@ -82,8 +82,10 @@ export async function transferCredits(
   await transact(
     c,
     s,
-    await verifyDeployment(c),
+    persist,
+    () => {},
     label,
+    await verifyDeployment(c),
     [
       ERC20.v0_1.transfer.invocation(
         addressFromBase58(c.credits),
@@ -91,8 +93,6 @@ export async function transferCredits(
         { receiver: addressFromBase58(to), amount },
       ),
     ],
-    persist,
-    () => {},
     async () => false, // Never replace the transfer.
   );
   return s.journal[label]!.hash;

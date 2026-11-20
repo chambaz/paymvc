@@ -88,6 +88,8 @@ for (const user of ["a", "b"] as const) {
     await transact(
       c,
       deployer,
+      () => save(funderFile, { journal: deployer.journal }),
+      () => {},
       `fund:${user}`,
       async () => {
         const tx = new Transaction();
@@ -97,7 +99,6 @@ for (const user of ["a", "b"] as const) {
         );
         return tx;
       },
-      () => save(funderFile, { journal: deployer.journal }),
     );
   });
   await step(`register-${user}`, async () => {
@@ -177,6 +178,8 @@ await step("external3", async () => {
   await transact(
     c,
     users.b,
+    () => persist("b"),
+    () => {},
     "external:3",
     async () => {
       const tx = new Transaction();
@@ -184,7 +187,6 @@ await step("external3", async () => {
       tx.transferObjects([coin], tx.pure.address(accountFor(users.a).address));
       return tx;
     },
-    () => persist("b"),
   );
 });
 await state("a", 85n, 4);

@@ -8,6 +8,8 @@ export default defineConfig({
   timeout: process.env.LIVE === "1" ? 900_000 : 180_000,
   expect: { timeout: process.env.LIVE === "1" ? 180_000 : 90_000 },
   use: {
+    // Dialogs open without animation, so that axe checks the final colors.
+    reducedMotion: "reduce",
     baseURL: "http://127.0.0.1:5182",
     trace: "off",
     video: "off",

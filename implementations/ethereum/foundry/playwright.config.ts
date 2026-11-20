@@ -6,6 +6,8 @@ export default defineConfig({
   timeout: 90_000,
   expect: { timeout: 15_000 },
   use: {
+    // Dialogs open without animation, so that axe checks the final colors.
+    reducedMotion: "reduce",
     baseURL: "http://127.0.0.1:5174",
     locale: "en-US",
     timezoneId: "UTC",

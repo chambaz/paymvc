@@ -16,11 +16,25 @@ const snapshots = [
   ["conformance/evidence.schema.json", "evidence.schema.json"],
 ];
 
+// Every file in src/components/ is shared view code.
+const components = async (folder) =>
+  (
+    await readdir(join(folder, "src/components"), {
+      recursive: true,
+      withFileTypes: true,
+    }).catch(() => [])
+  )
+    .filter((entry) => entry.isFile())
+    .map((entry) =>
+      relative(folder, join(entry.parentPath, entry.name)).replaceAll(
+        "\\",
+        "/",
+      ),
+    );
+
 // Presentation and policy code that every implementation shares unchanged.
 const shared = [
   "src/hooks/use-demo.ts",
-  "src/components/payments-view.tsx",
-  "src/components/theme-toggle.tsx",
   "src/chain/recovery.ts",
   "src/lib/utils.ts",
   "src/styles.css",
@@ -29,9 +43,7 @@ const shared = [
   "public/favicon.svg",
   "public/favicon.ico",
   "public/apple-touch-icon.png",
-  ...(await readdir(join(reference, "src/components/ui"))).map(
-    (file) => `src/components/ui/${file}`,
-  ),
+  ...(await components(reference)),
 ];
 
 const read = (path) => readFile(path, "utf8").catch(() => undefined);
@@ -104,10 +116,9 @@ for (const folder of await implementations()) {
       ))
     )
       failures.push(`${name}/${file} differs from the Ethereum implementation`);
-  const ui = await readdir(join(folder, "src/components/ui")).catch(() => []);
-  for (const file of ui)
-    if (!shared.includes(`src/components/ui/${file}`))
-      failures.push(`${name}/src/components/ui/${file} is not shared`);
+  for (const file of await components(folder))
+    if (!shared.includes(file))
+      failures.push(`${name}/${file} is not in the Ethereum implementation`);
 }
 if (failures.length) {
   console.error(failures.join("\n"));

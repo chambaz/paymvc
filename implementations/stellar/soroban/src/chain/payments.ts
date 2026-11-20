@@ -17,7 +17,12 @@ import {
   type Intent,
   type Session,
 } from "./session";
-import { readContract, ResultPending, transact } from "./transactions";
+import {
+  readContract,
+  ResultPending,
+  transact,
+  type Progress,
+} from "./transactions";
 
 const addr = (value: string) => new Address(value).toScVal();
 const bytes = (value: string) =>
@@ -144,12 +149,12 @@ export function payments(
   c: Deployment,
   s: Session,
   persist: () => void,
-  report: (message: string) => void,
+  progress: Progress,
 ) {
   const read = (method: string, args: xdr.ScVal[]) =>
     readContract(c, accountFor(s).address, c.contract, method, args);
   const invoke = (label: string, method: string, args: xdr.ScVal[]) =>
-    transact(c, s, persist, label, async () => [
+    transact(c, s, persist, progress, label, async () => [
       new Contract(c.contract).call(method, ...args),
     ]);
   async function execute(intent: Intent) {
@@ -186,9 +191,6 @@ export function payments(
       return entry.state === expected;
     };
     if ((await check()) && !s.journal[intent.operation]) return;
-    report(
-      creating ? "Submitting your payment operation" : "Updating this request",
-    );
     // Soroban has no implicit caller: the signer is an explicit, authorized argument.
     await invoke(
       intent.operation,
@@ -200,13 +202,13 @@ export function payments(
     if (!(await check())) throw new ResultPending();
   }
   async function setup() {
-    report("Checking deployment and XLM funding");
+    progress("Checking deployment and XLM funding");
     await verifyDeployment(c);
     const visitor = accountFor(s).address;
     const budget = await fundingBudget(c, visitor);
     if (!Object.keys(s.journal).length && budget.balance < budget.required)
       throw new FundingRequired();
-    report("Registering your wallet");
+    progress("Registering your wallet");
     if (!(await read("registered", [addr(visitor)])) || s.journal.register)
       await invoke("register", "register", [addr(visitor)]);
     if ((await read("registered", [addr(visitor)])) !== true)

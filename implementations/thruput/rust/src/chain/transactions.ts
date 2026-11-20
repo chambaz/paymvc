@@ -48,6 +48,8 @@ export class ExpiredTransaction extends Error {
   }
 }
 
+export type Progress = (message: string) => void;
+
 /**
  * Sign, save, broadcast, and confirm one transaction for `label`. The
  * wallet runs `calls` in order as one atomic batch.
@@ -60,11 +62,11 @@ export class ExpiredTransaction extends Error {
 export async function transact(
   c: Deployment,
   s: Session,
-  client: Client,
-  label: string,
-  calls: readonly Invocation[],
   persist: () => void,
-  progress: (message: string) => void,
+  progress: Progress,
+  label: string,
+  client: Client,
+  calls: readonly Invocation[],
   proveAbsent: (minStateBlockHeight: bigint) => Promise<boolean>,
 ) {
   if (s.deployment !== deploymentKey(c))
@@ -149,7 +151,7 @@ export async function transact(
     }
   }
 
-  progress("Pending confirmation");
+  progress("Waiting for confirmation");
   let receipt: TransactionReceipt;
   try {
     receipt = await client.waitForTransactionReceipt(

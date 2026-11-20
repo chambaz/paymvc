@@ -66,7 +66,7 @@ export async function transact(
   const client = rpc(c);
   let record = s.journal[label];
   if (!record) {
-    progress("Getting things ready");
+    progress("Preparing transaction");
     const signer = await signerFor(s);
     const ixs = await instructions();
     const { value: lifetime } = await client
@@ -88,7 +88,7 @@ export async function transact(
     s.journal[label] = record;
   }
   persist();
-  progress("Waiting for the network");
+  progress("Waiting for confirmation");
   const hash = signature(record.hash);
   const lookup = async () =>
     (

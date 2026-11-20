@@ -37,9 +37,7 @@ Copy the implementation closest to your chain. Keep the file layout from [fronte
 These files are shared. Copy them without changes:
 
 - `src/hooks/use-demo.ts`
-- `src/components/payments-view.tsx`
-- `src/components/theme-toggle.tsx`
-- `src/components/ui/*`
+- every file in `src/components/`
 - `src/chain/recovery.ts`
 - `src/lib/utils.ts`
 - `src/styles.css`

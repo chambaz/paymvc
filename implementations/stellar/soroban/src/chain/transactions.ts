@@ -71,16 +71,20 @@ export async function readContract(
   return scValToNative(result.result.retval);
 }
 
+export type Progress = (message: string) => void;
+
 export async function transact(
   c: Deployment,
   s: Session,
   persist: () => void,
+  progress: Progress,
   label: string,
   operations: () => Promise<xdr.Operation[]>,
 ) {
   const client = server(c);
   let record = s.journal[label];
   if (!record) {
+    progress("Preparing transaction");
     const signer = signerFor(s);
     const ledger = await client.getLatestLedger();
     const account = await client.getAccount(signer.publicKey());
@@ -115,6 +119,7 @@ export async function transact(
   // Retry storage too: a previous save may have failed after updating memory.
   persist();
   if (record.confirmed) return;
+  progress("Waiting for confirmation");
   const tx = TransactionBuilder.fromXDR(record.raw, c.passphrase);
   if (!(tx instanceof Transaction))
     throw new Error("Unsupported saved transaction.");
