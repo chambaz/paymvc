@@ -12,12 +12,12 @@ import {
   type Base64EncodedWireTransaction,
   type Signature,
 } from "@solana/kit";
-import { fetchMint } from "@solana-program/token";
 import {
   getInitializeInstructionAsync,
   PAYMVC_PROGRAM_ADDRESS,
 } from "../src/chain/generated";
 import { createRpc, parseDeployment, pda } from "../src/chain/config";
+import { verifyDeployment } from "../src/chain/payments";
 
 const local = process.argv.includes("--local");
 const rpcUrl =
@@ -42,6 +42,7 @@ const existing = await client
   .getAccountInfo(mint, { encoding: "base64", commitment: "confirmed" })
   .send();
 
+if (existing.value && existsSync(path)) rmSync(path);
 if (!existing.value) {
   let saved: Saved;
   if (existsSync(path)) saved = JSON.parse(readFileSync(path, "utf8"));
@@ -106,8 +107,8 @@ if (!existing.value) {
   rmSync(path);
 }
 
-const token = await fetchMint(client, mint, { commitment: "confirmed" });
-if (token.data.decimals !== 0) throw new Error("Unexpected mint decimals.");
+// The same checks as the browser: network, immutable program, and mint settings.
+await verifyDeployment(config);
 writeFileSync(
   local ? "public/local.json" : "public/deployment.json",
   JSON.stringify(config, null, 2) + "\n",

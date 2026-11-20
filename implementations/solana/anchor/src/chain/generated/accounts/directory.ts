@@ -21,6 +21,8 @@ import {
   getStructEncoder,
   getU64Decoder,
   getU64Encoder,
+  getU8Decoder,
+  getU8Encoder,
   transformEncoder,
   type Account,
   type Address,
@@ -47,9 +49,13 @@ export function getDirectoryDiscriminatorBytes(): ReadonlyUint8Array {
   return fixEncoderSize(getBytesEncoder(), 8).encode(DIRECTORY_DISCRIMINATOR);
 }
 
-export type Directory = { discriminator: ReadonlyUint8Array; count: bigint };
+export type Directory = {
+  discriminator: ReadonlyUint8Array;
+  count: bigint;
+  bump: number;
+};
 
-export type DirectoryArgs = { count: number | bigint };
+export type DirectoryArgs = { count: number | bigint; bump: number };
 
 /** Gets the encoder for {@link DirectoryArgs} account data. */
 export function getDirectoryEncoder(): FixedSizeEncoder<DirectoryArgs> {
@@ -57,6 +63,7 @@ export function getDirectoryEncoder(): FixedSizeEncoder<DirectoryArgs> {
     getStructEncoder([
       ["discriminator", fixEncoderSize(getBytesEncoder(), 8)],
       ["count", getU64Encoder()],
+      ["bump", getU8Encoder()],
     ]),
     (value) => ({ ...value, discriminator: DIRECTORY_DISCRIMINATOR }),
   );
@@ -67,6 +74,7 @@ export function getDirectoryDecoder(): FixedSizeDecoder<Directory> {
   return getStructDecoder([
     ["discriminator", fixDecoderSize(getBytesDecoder(), 8)],
     ["count", getU64Decoder()],
+    ["bump", getU8Decoder()],
   ]);
 }
 
@@ -145,5 +153,5 @@ export async function fetchAllMaybeDirectory(
 }
 
 export function getDirectorySize(): number {
-  return 16;
+  return 17;
 }

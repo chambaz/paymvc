@@ -16,7 +16,7 @@
     "test:conformance": "node ../../../conformance/verify.mjs",
     "test:live": "tsx scripts/live.ts",
     "test:live:browser": "tsx scripts/live-browser.ts",
-    "contracts:build": "anchor build --ignore-keys --tools-version v1.57 && tsx scripts/generate-client.ts",
+    "contracts:build": "tsx scripts/build.ts && tsx scripts/generate-client.ts",
     "deploy": "tsx scripts/deploy.ts",
     "local": "tsx scripts/local.ts"
   },

@@ -1,6 +1,7 @@
 import { readFileSync, writeFileSync } from "node:fs";
 import { getTransferCheckedInstruction } from "@solana-program/token";
-import { deploymentKey, pda } from "../src/chain/config";
+import { type Address } from "@solana/kit";
+import { deploymentKey, pda, rpc } from "../src/chain/config";
 import {
   newSession,
   accountFor,
@@ -44,18 +45,39 @@ async function user(label: "a" | "b") {
 }
 type User = Awaited<ReturnType<typeof user>>;
 
-/** Record the confirmed signature of a journal entry in scenario order. */
-function record(user: User, step: string, journal: string) {
-  transactions.push({
-    step: `${user.label}:${step}`,
-    hash: user.session.journal[journal]!.hash,
-  });
+/**
+ * Record the confirmed signature of a journal entry in scenario order. A rerun can find the
+ * step already done with no journal record. Then `entry`, the step's entry account, gives
+ * the signature: only its creation and its resolution write it, so a send or request is
+ * the oldest successful transaction there, and an approve or decline is the second.
+ */
+async function record(
+  user: User,
+  step: string,
+  journal: string,
+  entry?: { account: Address; resolution: boolean },
+) {
+  let hash = user.session.journal[journal]?.hash;
+  if (!hash && entry) {
+    const history = await rpc(c)
+      .getSignaturesForAddress(entry.account, {
+        limit: 10,
+        commitment: "confirmed",
+      })
+      .send();
+    // Newest first, so the oldest transaction is last.
+    const writes = history.filter((item) => !item.err).reverse();
+    hash = writes[entry.resolution ? 1 : 0]?.signature;
+  }
+  if (!hash) throw new Error(`No transaction found for ${step}.`);
+  transactions.push({ step: `${user.label}:${step}`, hash });
 }
 async function start(user: User) {
   // Setup funding is needed only before the first signature, as in the app.
   if (!Object.keys(user.session.journal).length) await fund(c, user.address);
   await user.app.setup();
-  record(user, "register", "register");
+  // The registration record stays in the journal, so it needs no fallback.
+  await record(user, "register", "register");
 }
 async function execute(
   user: User,
@@ -73,7 +95,12 @@ async function execute(
     id,
     operation,
   });
-  record(user, `${action} ${amount}`, operation);
+  await record(user, `${action} ${amount}`, operation, {
+    account: id
+      ? (id as Address)
+      : await entryAddress(c, user.address, operation),
+    resolution: Boolean(id),
+  });
 }
 async function request(
   requester: User,
@@ -107,7 +134,8 @@ try {
       decimals: 0,
     }),
   ]);
-  record(b, "external transfer 3", "external");
+  // The external transfer keeps its journal record, so it needs no fallback.
+  await record(b, "external transfer 3", "external");
 } catch (error) {
   failure = error;
 }

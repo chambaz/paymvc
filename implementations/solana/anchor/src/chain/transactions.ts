@@ -23,9 +23,10 @@ export class UnknownOutcome extends Error {
     );
   }
 }
+/** The transaction landed and failed, so nothing changed. `slot` is where it landed. */
 export class RevertedTransaction extends Error {
-  constructor() {
-    super("The transaction failed on-chain. No payment was completed.");
+  constructor(public slot?: bigint) {
+    super("The transaction failed on-chain, so nothing changed.");
   }
 }
 export class ExpiredTransaction extends Error {
@@ -54,7 +55,10 @@ export class ResultPending extends Error {
   }
 }
 
-/** Persist signed bytes before broadcast. Only finalized expiry permits a new signature. */
+/**
+ * Persist signed bytes before broadcast. Only finalized expiry permits a new signature.
+ * Returns the slot where the transaction confirmed, so that reads can wait for that state.
+ */
 export async function transact(
   c: Deployment,
   s: Session,
@@ -90,27 +94,26 @@ export async function transact(
   persist();
   progress("Waiting for confirmation");
   const hash = signature(record.hash);
-  const lookup = async () =>
-    (
-      await client
-        .getSignatureStatuses([hash], { searchTransactionHistory: true })
-        .send()
-    ).value[0];
+  const lookupAt = async () =>
+    client
+      .getSignatureStatuses([hash], { searchTransactionHistory: true })
+      .send();
+  const lookup = async () => (await lookupAt()).value[0];
   /** Settle a `confirmed` status: record success, or clear the journal and throw on a landed failure. */
   const settle = (status: Awaited<ReturnType<typeof lookup>>) => {
     if (
       status?.confirmationStatus !== "confirmed" &&
       status?.confirmationStatus !== "finalized"
     )
-      return false;
+      return undefined;
     if (status.err) {
       delete s.journal[label];
       persist();
-      throw new RevertedTransaction();
+      throw new RevertedTransaction(status.slot);
     }
     record.confirmed = true;
     persist();
-    return true;
+    return status.slot;
   };
   // Poll every 2 s and resend the saved bytes at most every 5 s. A failed read
   // proves nothing: keep waiting until the time limit, then report it unknown.
@@ -119,16 +122,29 @@ export async function transact(
   let sentAt = -Infinity;
   while (Date.now() - started < 90_000) {
     // `undefined` means the read failed; `null` means no transaction was found.
-    if (settle(await lookup().catch(() => undefined))) return;
+    const landed = settle(await lookup().catch(() => undefined));
+    if (landed !== undefined) return landed;
     const height = await client
       .getBlockHeight({ commitment: "finalized" })
       .send()
       .catch(() => undefined);
     if (height !== undefined && height > BigInt(record.lastValidBlockHeight)) {
       // Recheck after observing finalized expiry. A confirmed record is never discarded.
-      const final = await lookup().catch(() => undefined);
-      if (settle(final)) return;
-      if (final === null && !record.confirmed) {
+      // Public RPCs balance load across nodes, so a "not found" proves absence only
+      // from a node that has reached the finalized slot read here.
+      const finalized = await client
+        .getSlot({ commitment: "finalized" })
+        .send()
+        .catch(() => undefined);
+      const final = await lookupAt().catch(() => undefined);
+      const found = settle(final?.value[0]);
+      if (found !== undefined) return found;
+      if (
+        finalized !== undefined &&
+        final?.value[0] === null &&
+        final.context.slot >= finalized &&
+        !record.confirmed
+      ) {
         delete s.journal[label];
         persist();
         throw new ExpiredTransaction();
@@ -144,13 +160,13 @@ export async function transact(
           .sendTransaction(record.raw as Base64EncodedWireTransaction, {
             encoding: "base64",
             skipPreflight: true,
-            preflightCommitment: "confirmed",
             maxRetries: 0n,
           })
           .send();
       } catch (error) {
         // A rejected response does not prove absence. Reconcile before reporting it.
-        if (settle(await lookup().catch(() => undefined))) return;
+        const found = settle(await lookup().catch(() => undefined));
+        if (found !== undefined) return found;
         throw new BroadcastUnavailable(error);
       }
     }

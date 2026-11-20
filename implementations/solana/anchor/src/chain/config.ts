@@ -53,7 +53,10 @@ export function withRetry(transport: RpcTransport): RpcTransport {
         const delay = after
           ? Number(after) * 1000 || Date.parse(after) - Date.now()
           : 1_000 * 2 ** attempt;
-        await new Promise((resolve) => setTimeout(resolve, Math.max(0, delay)));
+        // A long Retry-After would hold the write queue; cap it and let the user retry.
+        await new Promise((resolve) =>
+          setTimeout(resolve, Math.min(Math.max(0, delay), 15_000)),
+        );
       }
     }
   };

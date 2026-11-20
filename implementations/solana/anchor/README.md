@@ -50,14 +50,16 @@ The profile holds its owner and activity count. Registration atomically creates 
 
 The directory has a count account and one immutable member account per registration index. The client reads at most six members to show five other users, omitting self. Registration order is stable.
 
-Each participant has numbered activity PDAs `["activity", owner, index]`. Each record points to an entry. The client reads activity with an absolute cursor: a page holds the records with index < `before`, newest first, at most 50. It starts with `before = activity_count`. A new record gets a higher index, so it never shifts a later page. Requests update their original entry, so a paid request keeps its position.
+Each participant has activity accounts `["activity", owner, page]` of 32 records each. Record `i` is in page `i / 32`, at position `i % 32`, and points to an entry. A payment creates the page that holds a participant's next record when it does not exist yet (`init_if_needed`). The client reads activity with an absolute cursor: a read holds the records with index < `before`, newest first, at most 50. It starts with `before = activity_count`. A new record gets a higher index, so it never shifts a later read. Requests update their original entry, so a paid request keeps its position.
 
-Concurrent registration or payments can invalidate a prepared directory or activity index. Transactions skip preflight, so the stale transaction lands as a confirmed failure. It does not allocate credits or add membership, and it clears the saved transaction. Explicit retry then reads the current index and signs a new transaction.
+The client chooses the activity accounts from the counts it read before signing. Payments to the same person by other users land in the same page, so they do not conflict. Only a concurrent record that fills a page makes a prepared payment fail, because its next record then belongs to the next page. A concurrent registration can also invalidate a prepared directory index. Transactions skip preflight, so the stale transaction lands as a confirmed failure. It does not allocate credits, add membership, or move funds, and it clears the saved transaction. Explicit retry then reads the current counts and signs a new transaction.
+
+The two 1 KB activity accounts in `send` and `request` are boxed, so the instruction stays within the 4 KB stack frame. `npm run contracts:build` fails if any function exceeds it, because `anchor build` only prints that error.
 
 ### Native differences from the canonical interface
 
 - **Reads are account reads.** Solana programs do not return data to clients. The client reads the profile, directory, member, activity, and entry accounts directly. `registered`, `profile_count`, `profiles`, `entry`, `activity_count`, and `activity` are account reads in `src/chain/payments.ts`. `entry(from, operation)` is a fetch of the entry PDA that may not exist.
-- **Accounts are explicit.** Each instruction lists the accounts it reads or writes. The client passes the activity PDAs, because their addresses depend on the current activity counts. The generated client derives the other accounts from the arguments.
+- **Accounts are explicit.** Each instruction lists the accounts it reads or writes. The client passes the activity accounts, because their addresses depend on the current activity counts. The generated client derives the other accounts from the arguments.
 - **Some errors come from the account runtime.** The program raises `InvalidParticipants`, `InvalidAmount`, `InvalidOperation`, `Unauthorized`, and `NotPending`. The other canonical errors are native:
 
   | Canonical error   | Solana error                          | Cause                                                                         |
@@ -78,15 +80,18 @@ Demo credits are a standard SPL Token mint with zero decimals. Balances come fro
 - The mint has no freeze authority.
 - There is no administrator mint or debit instruction.
 - `send` and `approve` move credits with `transfer_checked`, signed by the payer. `decline` does not touch token accounts.
+- A user can close an empty token account outside the app. Before `send` and `approve`, the client adds the associated token program's idempotent create instruction when the receiver's account is missing, so a payment to that user still lands. The payer pays its rent.
 - External SPL transfers, including to unregistered accounts, change the real balance without adding app activity.
 
-The client checks the mint owner, decimals, mint authority, and missing freeze authority before setup and before each operation.
+Once per page load, before the first operation, the client checks the mint owner, decimals, mint authority, and missing freeze authority.
 
 ## 4. Funding
 
 Fund the displayed address with Devnet SOL through the linked faucet before registration. Faucets may require sign-in or impose limits.
 
-The funding estimate includes rent for the profile, token account, and directory member, rent for eight payments (one entry and two activity records each), and fees. It is at least 0.05 SOL. The wallet is saved before funding or transactions start.
+The funding estimate includes rent for the profile, token account, and directory member, rent for eight entries and two activity accounts, and fees. It is at least 0.05 SOL. The wallet is saved before funding or transactions start. Before it signs a payment, the client checks that the wallet can pay the fee and the rent of the accounts that the payment creates. If not, it asks for more SOL and signs nothing.
+
+Transactions set no priority fee, so they use the default compute unit limit at no extra cost. `tests/payments.rs` checks that each instruction stays well below it.
 
 ## 5. Confirmation and recovery
 
@@ -96,29 +101,34 @@ The general policy is in [transaction recovery](../../../docs/recovery.md).
 - Confirmation requires a `confirmed` signature status and the expected program state. It is not finality.
 - Retry checks the original signature and may rebroadcast the same bytes.
 - The client polls the signature status every 2 s and rebroadcasts the saved bytes at most every 5 s. A failed read is not proof of anything: the client keeps waiting for up to 90 s, then reports an unknown outcome.
-- The public devnet RPC limits requests per IP address. Every RPC client retries an HTTP 429 or 503 response up to four times. It waits for `Retry-After` when the response has it, otherwise 1, 2, 4, and 8 s. Browsers cannot read devnet's `Retry-After`, so this fallback (15 s in total) must outlast devnet's 10 s block.
-- A new signature is allowed only after the finalized block height passes the saved expiry and a second history lookup finds no transaction. A confirmed failure also permits explicit retry.
-- Permanent entry PDAs from `(from, operation)` prevent duplicate payments. Retry reconciliation fetches the same PDA.
+- The public devnet RPC limits requests per IP address. Every RPC client retries an HTTP 429 or 503 response up to four times. It waits for `Retry-After` when the response has it, up to 15 s, otherwise 1, 2, 4, and 8 s. Browsers cannot read devnet's `Retry-After`, so this fallback (15 s in total) must outlast devnet's 10 s block.
+- A new signature is allowed only after the finalized block height passes the saved expiry and a second history lookup finds no transaction. That lookup counts only if its context slot is at or after the finalized slot, because the public RPC balances requests across nodes that can lag. A confirmed failure also permits explicit retry.
+- After confirmation, the client reads the expected state with `minContextSlot` set to the confirmation slot, so a lagging node cannot hide it.
+- Permanent entry PDAs from `(from, operation)` prevent duplicate payments. Retry reconciliation fetches the same PDA. If a new attempt lands as a failure because an earlier attempt already created the entry or resolved the request, the client reads the entry from that slot and reports the earlier success.
 
 Setup makes one automatic recheck after five seconds for an unknown outcome or a delayed registration result. Interactive operations make one recheck for delayed application state. Further recovery needs user action.
 
 Failed reads keep the last balance with a stale indicator. Activity reads use `confirmed` commitment in batches of at most 50. Separate reads are not an atomic snapshot.
 
-The network genesis hash, the executable program, and the mint settings are verified before setup and each operation. Sessions bind to the genesis hash and program address. The development program stays upgradeable by its maintainer.
+The network genesis hash, the program, and the mint settings are verified once per page load, before the first operation. The program must be owned by the upgradeable loader with no upgrade authority, so it cannot change under existing sessions. Sessions bind to the genesis hash and program address. A new program version needs a new program address.
 
 Keys stay in browser storage and local signing inputs. Web Locks permit one writer tab. Reset removes this session's local access. It cannot cancel transactions or remove chain state. Signing keys never belong in logs, URLs, APIs, commits, or test artifacts.
 
 ## 6. Deploy
 
 ```sh
-solana program deploy target/deploy/paymvc.so --program-id .local/paymvc-program.json --buffer .local/paymvc-buffer.json --use-tpu-client --url https://api.devnet.solana.com --keypair .local/deployer.json
+solana program deploy target/deploy/paymvc.so --program-id .local/paymvc-program.json \
+  --buffer .local/paymvc-buffer.json --use-tpu-client --final \
+  --commitment confirmed --with-compute-unit-price 1000 \
+  --url https://api.devnet.solana.com --keypair .local/deployer.json
 ```
 
 `npm run deploy` runs that command, then `scripts/initialize.ts`. Run `npm run contracts:build` first.
 
 - Builds use the declared program ID without its private key. The deployment needs the matching key in `.local/paymvc-program.json`.
 - For a new program, generate a key with `solana-keygen new --outfile .local/paymvc-program.json`. Put its address in `declare_id!` and `Anchor.toml`, then rebuild. A new program ID gives every browser a new session.
-- The deploy script uses `.local/deployer.json` and the buffer key `.local/paymvc-buffer.json`. It prints the deployer address and balance. The deployer needs about 3 SOL: rent for the buffer and the program data (about 1.43 SOL each), plus fees. The buffer rent returns after deployment.
+- `--final` removes the upgrade authority. The program can never change, and the browser refuses a program that still has an authority. Local validators load the program the same way.
+- The deploy script uses `.local/deployer.json` and the buffer key `.local/paymvc-buffer.json`. It prints the deployer address and balance. Rent is (bytes + 128) × 6,960 lamports per account. For the current 295 KB program, the buffer and the program data need about 2.1 SOL each, so the deployer needs about 4.2 SOL plus fees. The buffer rent returns after deployment.
 - If an upload stops, rerun. The CLI resumes into the same buffer.
 - Initialization signs with the deployer key, saves the signed bytes before broadcast, and reconciles them on rerun. It writes the verified configuration to `public/deployment.json`.
 - `RPC_URL` selects a public browser-accessible Devnet endpoint. Do not publish provider secrets. Keep all keys private.
@@ -134,7 +144,7 @@ npm run test:conformance
 cargo clippy --all-targets --all-features --locked -- -D warnings
 ```
 
-Build the program before tests. Rust tests run the actual SBPF program in LiteSVM. Unit tests are in `tests/unit/`. Browser tests in `tests/e2e/` use real validator transactions and independent A/B sessions. Run browser suites one at a time. Traces and videos are off to keep keys out of artifacts. Local tests do not prove public-testnet acceptance.
+Build the program before tests. Rust tests run the actual SBPF program in LiteSVM. They cover the mint settings, a second initialization, substituted profiles, mints, and token accounts with their exact errors, activity pages under concurrent payments, and the compute units of each instruction. Unit tests are in `tests/unit/`. Browser tests in `tests/e2e/` use real validator transactions and independent A/B sessions. Run browser suites one at a time. Traces and videos are off to keep keys out of artifacts. Local tests do not prove public-testnet acceptance.
 
 This directory can be copied on its own. `npm run test:conformance` compares the shared files, the test snapshots, and the committed evidence with the repository, so it runs only inside the repository. Production code never imports sibling implementations.
 

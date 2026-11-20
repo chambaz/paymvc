@@ -1,14 +1,20 @@
 import {
   address,
+  getAddressDecoder,
   getBase16Encoder,
+  getBase64Encoder,
+  getU32Decoder,
   getU64Encoder,
   isSome,
   type Address,
+  type Instruction,
+  type TransactionSigner,
 } from "@solana/kit";
 import {
   fetchToken,
   fetchMint,
   findAssociatedTokenPda,
+  getCreateAssociatedTokenIdempotentInstruction,
   getTokenSize,
   TOKEN_PROGRAM_ADDRESS,
 } from "@solana-program/token";
@@ -41,10 +47,30 @@ import {
   type Intent,
   type Session,
 } from "./session";
-import { transact, ResultPending, type Progress } from "./transactions";
+import {
+  transact,
+  ResultPending,
+  RevertedTransaction,
+  type Progress,
+} from "./transactions";
 
 const commitment = "confirmed" as const;
+/** Activity records per activity account: `ACTIVITY_PAGE` in programs/paymvc/src/state.rs. */
+export const ACTIVITY_PAGE = 32n;
+const UPGRADEABLE_LOADER = address(
+  "BPFLoaderUpgradeab1e11111111111111111111111",
+);
+
+/** Deployments that passed verification in this page. The program cannot change. */
+const verified = new Set<string>();
+
+/**
+ * Checks the network, that the program is immutable (no upgrade authority), and the demo
+ * mint. A program with an upgrade authority could change under existing sessions.
+ */
 export async function verifyDeployment(c: Deployment) {
+  const id = `${c.genesisHash}:${c.program}`;
+  if (verified.has(id)) return;
   const client = rpc(c);
   if ((await client.getGenesisHash().send()) !== c.genesisHash)
     throw new Error(
@@ -54,17 +80,49 @@ export async function verifyDeployment(c: Deployment) {
     client.getAccountInfo(c.program, { encoding: "base64", commitment }).send(),
     fetchMint(client, await pda(c, "mint"), { commitment }),
   ]);
+  const fail = () =>
+    new Error(
+      "Deployment verification failed. Check the program and demo mint.",
+    );
+  if (!program.value?.executable || program.value.owner !== UPGRADEABLE_LOADER)
+    throw fail();
+  // A loader-v3 program account holds `Program { programdata_address }`.
+  const programBytes = getBase64Encoder().encode(program.value.data[0]);
+  if (getU32Decoder().decode(programBytes) !== 2) throw fail();
+  const programData = getAddressDecoder().decode(programBytes, 4);
+  const data = await client
+    // Only the header is needed, not the program bytes.
+    .getAccountInfo(programData, {
+      encoding: "base64",
+      commitment,
+      dataSlice: { offset: 0, length: 45 },
+    })
+    .send();
+  // `ProgramData { slot, upgrade_authority_address: Option<Pubkey> }`: byte 12 is the option
+  // tag. `solana program deploy --final` stores None. A local validator's "none" stores the
+  // all-zero key, which nobody can sign for. Both mean that the program cannot change.
+  const dataBytes = data.value
+    ? getBase64Encoder().encode(data.value.data[0])
+    : undefined;
+  const frozen =
+    dataBytes?.[12] === 0 ||
+    (dataBytes?.[12] === 1 && dataBytes.slice(13, 45).every((byte) => !byte));
   if (
-    !program.value?.executable ||
+    !dataBytes ||
+    data.value?.owner !== UPGRADEABLE_LOADER ||
+    getU32Decoder().decode(dataBytes) !== 3 ||
+    !frozen
+  )
+    throw fail();
+  if (
     mint.programAddress !== TOKEN_PROGRAM_ADDRESS ||
     mint.data.decimals !== 0 ||
     !isSome(mint.data.mintAuthority) ||
     mint.data.mintAuthority.value !== (await pda(c, "authority")) ||
     isSome(mint.data.freezeAuthority)
   )
-    throw new Error(
-      "Deployment verification failed. Check the program and demo mint.",
-    );
+    throw fail();
+  verified.add(id);
 }
 export const profileAddress = (c: Deployment, owner: Address) =>
   pda(c, "profile", addressBytes.encode(owner));
@@ -79,8 +137,14 @@ export const entryAddress = (
     addressBytes.encode(owner),
     getBase16Encoder().encode(operation),
   );
+/** The activity account that holds record `index` of `owner`. */
 export const activityAddress = (c: Deployment, owner: Address, index: bigint) =>
-  pda(c, "activity", addressBytes.encode(owner), getU64Encoder().encode(index));
+  pda(
+    c,
+    "activity",
+    addressBytes.encode(owner),
+    getU64Encoder().encode(index / ACTIVITY_PAGE),
+  );
 export async function tokenAddress(c: Deployment, owner: Address) {
   return (
     await findAssociatedTokenPda({
@@ -117,14 +181,44 @@ export async function fundingBudget(c: Deployment, visitor: Address) {
     rent(getEntrySize()),
     rent(getActivitySize()),
   ]);
-  // Registration, then eight payments (one entry and two activity records each), plus fees.
+  // Registration, then eight payments: one entry each, and the first activity account of
+  // this wallet and of one contact. Plus fees.
   const estimate =
-    profile + token + member + 8n * (entry + 2n * activity) + 5_000_000n;
+    profile + token + member + 8n * entry + 2n * activity + 5_000_000n;
   const required = estimate > 50_000_000n ? estimate : 50_000_000n;
   const { value: balance } = await client
     .getBalance(visitor, { commitment })
     .send();
   return { balance, required };
+}
+
+/** A read that the RPC could not answer at the needed slot yet. */
+const pending = (): never => {
+  throw new ResultPending();
+};
+
+/**
+ * A new attempt can land after an earlier one that a lagging RPC did not show. It then
+ * fails on chain because the earlier attempt already made the change. Reads state from
+ * the failure's slot on and returns true when `done` finds the expected effect there.
+ *
+ * When that read fails, the confirmed failure stands. It is not reported as pending,
+ * because an automatic recheck would sign a new transaction. The user's explicit
+ * retry reads the state again before it signs.
+ */
+export async function landedEarlier<T>(
+  error: unknown,
+  read: (minContextSlot: bigint) => Promise<T>,
+  done: (state: T) => boolean,
+) {
+  if (!(error instanceof RevertedTransaction) || !error.slot) return false;
+  let state: T;
+  try {
+    state = await read(error.slot);
+  } catch {
+    return false;
+  }
+  return done(state);
 }
 
 export function payments(
@@ -134,6 +228,44 @@ export function payments(
   progress: Progress,
 ) {
   const client = rpc(c);
+  const program = { programAddress: c.program };
+  /** Fails before signing when the wallet cannot pay the fee and the new accounts' rent. */
+  async function requireLamports(owner: Address, sizes: number[]) {
+    // A system account must end a transaction empty or rent-exempt, so the payer also
+    // keeps the minimum for a zero-byte account.
+    const [{ value: balance }, ...rents] = await Promise.all([
+      client.getBalance(owner, { commitment }).send(),
+      ...[0, ...sizes].map((size) =>
+        client.getMinimumBalanceForRentExemption(BigInt(size)).send(),
+      ),
+    ]);
+    const fee = 10_000n;
+    if (balance < rents.reduce((sum, rent) => sum + rent, fee))
+      throw new Error(
+        "This wallet needs more devnet SOL for fees and account rent. Fund its address, then retry.",
+      );
+  }
+  /** Creates `owner`'s credit account if it was closed, so that it can receive credits. */
+  async function tokenAccountFor(payer: TransactionSigner, owner: Address) {
+    const ata = await tokenAddress(c, owner);
+    const exists = (
+      await client
+        .getAccountInfo(ata, { encoding: "base64", commitment })
+        .send()
+    ).value;
+    const instructions: Instruction[] = exists
+      ? []
+      : [
+          getCreateAssociatedTokenIdempotentInstruction({
+            payer,
+            ata,
+            owner,
+            mint: await pda(c, "mint"),
+          }),
+        ];
+    return { instructions, size: exists ? 0 : getTokenSize() };
+  }
+
   async function execute(intent: Intent) {
     const { amount } = parseIntent(intent);
     await verifyDeployment(c);
@@ -157,7 +289,9 @@ export function payments(
             "The saved operation does not match its on-chain record.",
           );
       };
-      const previous = await fetchMaybeEntry(client, id, { commitment });
+      const read = (minContextSlot?: bigint) =>
+        fetchMaybeEntry(client, id, { commitment, minContextSlot });
+      const previous = await read();
       if (previous.exists) {
         verify(previous);
         // Reconcile the original signature even when state already exists.
@@ -172,43 +306,74 @@ export function payments(
           );
         return;
       }
-      await transact(c, s, persist, progress, intent.operation, async () => {
-        const [fromProfile, toProfile] = await Promise.all([
-          fetchProfile(client, await profileAddress(c, actor), {
-            commitment,
-          }),
-          fetchMaybeProfile(client, await profileAddress(c, recipient), {
-            commitment,
-          }),
-        ]);
-        if (!toProfile.exists)
-          throw new Error("Choose a registered PayMVC account.");
-        verifyOwner(c, fromProfile);
-        verifyOwner(c, toProfile);
-        if (kind === Kind.Transfer) {
-          const token = await fetchToken(client, await tokenAddress(c, actor), {
-            commitment,
-          });
-          if (token.data.amount < amount)
-            throw new Error(
-              "Not enough demo credits. No payment was completed.",
+      let slot: bigint;
+      try {
+        slot = await transact(
+          c,
+          s,
+          persist,
+          progress,
+          intent.operation,
+          async () => {
+            const [fromProfile, toProfile] = await Promise.all([
+              fetchProfile(client, await profileAddress(c, actor), {
+                commitment,
+              }),
+              fetchMaybeProfile(client, await profileAddress(c, recipient), {
+                commitment,
+              }),
+            ]);
+            if (!toProfile.exists)
+              throw new Error("Choose a registered PayMVC account.");
+            verifyOwner(c, fromProfile);
+            verifyOwner(c, toProfile);
+            const counts = [
+              fromProfile.data.activityCount,
+              toProfile.data.activityCount,
+            ];
+            // An activity account is created with the first record of each page.
+            const sizes = [
+              getEntrySize(),
+              ...counts
+                .filter((count) => count % ACTIVITY_PAGE === 0n)
+                .map(() => getActivitySize()),
+            ];
+            const fromActivity = await activityAddress(c, actor, counts[0]!);
+            const toActivity = await activityAddress(c, recipient, counts[1]!);
+            const operation = getBase16Encoder().encode(intent.operation);
+            if (kind === Kind.Request) {
+              await requireLamports(actor, sizes);
+              return [
+                await getRequestInstructionAsync(
+                  {
+                    from: signer,
+                    fromActivity,
+                    payerActivity: toActivity,
+                    payer: recipient,
+                    amount,
+                    operation,
+                  },
+                  program,
+                ),
+              ];
+            }
+            const token = await fetchToken(
+              client,
+              await tokenAddress(c, actor),
+              { commitment },
             );
-        }
-        const operation = getBase16Encoder().encode(intent.operation);
-        const fromActivity = await activityAddress(
-          c,
-          actor,
-          fromProfile.data.activityCount,
-        );
-        const toActivity = await activityAddress(
-          c,
-          recipient,
-          toProfile.data.activityCount,
-        );
-        const program = { programAddress: c.program };
-        return [
-          kind === Kind.Transfer
-            ? await getSendInstructionAsync(
+            if (token.data.amount < amount)
+              throw new Error(
+                "Not enough demo credits. No payment was completed.",
+              );
+            const receiver = await tokenAccountFor(signer, recipient);
+            await requireLamports(actor, [
+              ...sizes,
+              ...(receiver.size ? [receiver.size] : []),
+            ]);
+            return [
+              ...receiver.instructions,
+              await getSendInstructionAsync(
                 {
                   from: signer,
                   fromActivity,
@@ -218,26 +383,28 @@ export function payments(
                   operation,
                 },
                 program,
-              )
-            : await getRequestInstructionAsync(
-                {
-                  from: signer,
-                  fromActivity,
-                  payerActivity: toActivity,
-                  payer: recipient,
-                  amount,
-                  operation,
-                },
-                program,
               ),
-        ];
-      });
-      const result = await fetchMaybeEntry(client, id, { commitment });
+            ];
+          },
+        );
+      } catch (error) {
+        const earlier = await landedEarlier(error, read, (landed) => {
+          if (!landed.exists) return false;
+          verify(landed);
+          return true;
+        });
+        if (!earlier) throw error;
+        return;
+      }
+      // A node behind the confirmation slot refuses the read. Recheck it later.
+      const result = await read(slot).catch(pending);
       if (!result.exists) throw new ResultPending();
       verify(result);
     } else {
       const id = address(intent.id);
-      const entry = await fetchEntry(client, id, { commitment });
+      const read = (minContextSlot?: bigint) =>
+        fetchEntry(client, id, { commitment, minContextSlot });
+      const entry = await read();
       verifyOwner(c, entry);
       if (entry.data.from !== intent.recipient || entry.data.amount !== amount)
         throw new Error(
@@ -251,34 +418,58 @@ export function payments(
         throw new Error(
           "This request has already been resolved. Refresh its status.",
         );
+      let slot: bigint | undefined;
       if (s.journal[intent.operation] || entry.data.state === State.Pending) {
-        await transact(c, s, persist, progress, intent.operation, async () => {
-          if (
-            approve &&
-            (
-              await fetchToken(client, await tokenAddress(c, actor), {
-                commitment,
-              })
-            ).data.amount < entry.data.amount
-          )
-            throw new Error(
-              "Not enough demo credits. No payment was completed.",
-            );
-          // The entry address is derived from (from, operation). Decline needs no token accounts.
-          const input = {
-            payer: signer,
-            from: entry.data.from,
-            operation: entry.data.operation,
-          };
-          const program = { programAddress: c.program };
-          return [
-            approve
-              ? await getApproveInstructionAsync(input, program)
-              : await getDeclineInstructionAsync(input, program),
-          ];
-        });
+        try {
+          slot = await transact(
+            c,
+            s,
+            persist,
+            progress,
+            intent.operation,
+            async () => {
+              // The entry address is derived from (from, operation). Decline needs no token accounts.
+              const input = {
+                payer: signer,
+                from: entry.data.from,
+                operation: entry.data.operation,
+              };
+              if (!approve) {
+                await requireLamports(actor, []);
+                return [await getDeclineInstructionAsync(input, program)];
+              }
+              const token = await fetchToken(
+                client,
+                await tokenAddress(c, actor),
+                { commitment },
+              );
+              if (token.data.amount < entry.data.amount)
+                throw new Error(
+                  "Not enough demo credits. No payment was completed.",
+                );
+              const receiver = await tokenAccountFor(signer, entry.data.from);
+              await requireLamports(
+                actor,
+                receiver.size ? [receiver.size] : [],
+              );
+              return [
+                ...receiver.instructions,
+                await getApproveInstructionAsync(input, program),
+              ];
+            },
+          );
+        } catch (error) {
+          // As for a payment: an earlier attempt may have resolved the request already.
+          const earlier = await landedEarlier(
+            error,
+            read,
+            (entry) => entry.data.state === expected,
+          );
+          if (!earlier) throw error;
+          return;
+        }
       }
-      const resolved = await fetchEntry(client, id, { commitment });
+      const resolved = await read(slot).catch(pending);
       if (resolved.data.state !== expected) throw new ResultPending();
     }
   }
@@ -299,8 +490,9 @@ export function payments(
     if (saved.exists) {
       verifyOwner(c, saved);
     }
+    let slot: bigint | undefined;
     if (!saved.exists || s.journal.register)
-      await transact(
+      slot = await transact(
         c,
         s,
         persist,
@@ -331,8 +523,8 @@ export function payments(
     const registered = await fetchMaybeProfile(
       client,
       await profileAddress(c, owner.address),
-      { commitment },
-    );
+      { commitment, minContextSlot: slot },
+    ).catch(pending);
     if (!registered.exists) throw new ResultPending();
     verifyOwner(c, registered);
     if (registered.data.owner !== visitor)
@@ -437,20 +629,30 @@ export async function readActivity(
     throw new Error("Read from 1 to 50 activity records at a time.");
   const client = rpc(c);
   const size = before < BigInt(limit) ? Number(before) : limit;
-  const indexes = await Promise.all(
-    Array.from({ length: size }, (_, i) =>
-      activityAddress(c, owner, before - 1n - BigInt(i)),
-    ),
+  if (!size) return [];
+  const indexes = Array.from(
+    { length: size },
+    (_, i) => before - 1n - BigInt(i),
   );
-  const activities = size
-    ? await fetchAllActivity(client, indexes, { commitment })
-    : [];
-  activities.forEach((a) => verifyOwner(c, a));
-  return size
-    ? await fetchAllEntry(
-        client,
-        activities.map((a) => a.data.entry),
-        { commitment },
-      )
-    : [];
+  // Consecutive records share an activity account, so read each account once.
+  const pages = [...new Set(indexes.map((index) => index / ACTIVITY_PAGE))];
+  const accounts = await fetchAllActivity(
+    client,
+    await Promise.all(
+      pages.map((page) => activityAddress(c, owner, page * ACTIVITY_PAGE)),
+    ),
+    { commitment },
+  );
+  accounts.forEach((account) => verifyOwner(c, account));
+  const byPage = new Map(pages.map((page, i) => [page, accounts[i]!]));
+  return fetchAllEntry(
+    client,
+    indexes.map(
+      (index) =>
+        byPage.get(index / ACTIVITY_PAGE)!.data.entries[
+          Number(index % ACTIVITY_PAGE)
+        ]!,
+    ),
+    { commitment },
+  );
 }

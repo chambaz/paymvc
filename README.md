@@ -53,6 +53,7 @@ The demo keeps disposable keys in browser storage. All credits and networks are 
 - [Add an implementation](docs/adding-an-implementation.md)
 - [Comparison](docs/comparison.md)
 - [Contributing](CONTRIBUTING.md)
+- [Security](SECURITY.md)
 
 ## License
 
