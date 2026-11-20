@@ -343,6 +343,16 @@ describe("payments", () => {
     }) as never;
   const entryView = (value: unknown) =>
     vi.spyOn(app.entry, "view").mockResolvedValue({ value } as never);
+  /** A resolution first reads the pending request, then the resolved entry. */
+  const resolvedView = (from: string, state: bigint) =>
+    entryView(
+      chainEntry(from, accountFor(session).address, 1n, state),
+    ).mockResolvedValueOnce({
+      value: chainEntry(from, accountFor(session).address, 1n, 0n),
+    } as never);
+  /** Whether the recipient is registered, read before a new entry is signed. */
+  const registeredView = (value: boolean) =>
+    vi.spyOn(app.registered, "view").mockResolvedValue({ value } as never);
   /** The payer's credits, read before a payment is signed. */
   const balanceView = (value: bigint) =>
     vi
@@ -350,6 +360,59 @@ describe("payments", () => {
       .mockResolvedValue({ value } as never);
   beforeEach(() => {
     balanceView(100n);
+    registeredView(true);
+  });
+
+  it("refuses an unregistered recipient before signing", async () => {
+    registeredView(false);
+    for (const action of ["send", "request"] as const)
+      await expect(
+        execute({
+          action,
+          recipient: peer,
+          amount: "5",
+          id: "",
+          operation: operationId(),
+        }),
+      ).rejects.toThrow("registered PayMVC account");
+    expect(transact).not.toHaveBeenCalled();
+  });
+
+  it("refuses a missing, foreign, or resolved request before signing", async () => {
+    const respond = (action: "approve" | "decline") =>
+      execute({
+        action,
+        recipient: peer,
+        amount: "5",
+        id: entryId(peer, operationId()),
+        operation: operationId(),
+      });
+    entryView(null);
+    await expect(respond("approve")).rejects.toThrow("was not found");
+    entryView(chainEntry(peer, contact(9), 1n, 0n));
+    await expect(respond("decline")).rejects.toThrow(
+      "Only the requested payer",
+    );
+    for (const state of [1n, 2n]) {
+      entryView(chainEntry(peer, accountFor(session).address, 1n, state));
+      await expect(respond("approve")).rejects.toThrow("already been resolved");
+      await expect(respond("decline")).rejects.toThrow("already been resolved");
+    }
+    expect(transact).not.toHaveBeenCalled();
+  });
+
+  it("reconciles a saved response without the checks before signing", async () => {
+    const operation = operationId();
+    session.journal[`${operation}:approve`] = {} as never;
+    entryView(chainEntry(peer, accountFor(session).address, 1n, 1n));
+    await execute({
+      action: "approve",
+      recipient: peer,
+      amount: "5",
+      id: entryId(peer, operationId()),
+      operation,
+    });
+    expect(transact).toHaveBeenCalledOnce();
   });
 
   it("refuses a payment above the balance before signing", async () => {
@@ -400,9 +463,7 @@ describe("payments", () => {
 
   it("approves the request named by its row ID with an exact allowance", async () => {
     const requestOperation = operationId();
-    const view = entryView(
-      chainEntry(peer, accountFor(session).address, 1n, 1n),
-    );
+    const view = resolvedView(peer, 1n);
     await execute({
       action: "approve",
       recipient: peer,
@@ -419,7 +480,7 @@ describe("payments", () => {
   });
 
   it("declines without an allowance", async () => {
-    entryView(chainEntry(peer, accountFor(session).address, 1n, 2n));
+    resolvedView(peer, 2n);
     await execute({
       action: "decline",
       recipient: peer,

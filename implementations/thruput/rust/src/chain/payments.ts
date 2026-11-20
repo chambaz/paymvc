@@ -350,24 +350,51 @@ export function payments(
             )
           ).value;
         const label = `${intent.operation}:${intent.action}`;
-        // A payment needs the credits before it is signed. A saved transaction is
-        // reconciled instead, whatever the current balance is.
-        if (
-          (intent.action === "send" || intent.action === "approve") &&
-          !s.journal[label]
-        ) {
-          const { value: balance } = await waitForHeight(() =>
-            token.getBalanceOf.view({
-              client,
-              address: credits,
-              args: { addr: owner },
-              minStateBlockHeight: confirmedHeight(s),
-            }),
-          );
-          if (balance < amount)
-            throw new Error(
-              "Not enough demo credits. No payment was completed.",
+        // Checks the contract's rules before signing, so that a write that must
+        // fail is never sent. A saved transaction is reconciled instead,
+        // whatever the current state is.
+        if (!s.journal[label]) {
+          const height = confirmedHeight(s);
+          if (creating) {
+            const { value: registered } = await waitForHeight(() =>
+              app.registered.view({
+                client,
+                address,
+                args: { account: recipient },
+                minStateBlockHeight: height,
+              }),
             );
+            if (!registered)
+              throw new Error("Choose a different, registered PayMVC account.");
+          } else {
+            const request = await entry(height);
+            if (!request)
+              throw new Error(
+                "This request was not found. Refresh and try again.",
+              );
+            if (toBase58(request.to) !== accountFor(s).address)
+              throw new Error(
+                "Only the requested payer can respond to this request.",
+              );
+            if (request.state !== 0n)
+              throw new Error(
+                "This request has already been resolved. Refresh its status.",
+              );
+          }
+          if (intent.action === "send" || intent.action === "approve") {
+            const { value: balance } = await waitForHeight(() =>
+              token.getBalanceOf.view({
+                client,
+                address: credits,
+                args: { addr: owner },
+                minStateBlockHeight: height,
+              }),
+            );
+            if (balance < amount)
+              throw new Error(
+                "Not enough demo credits. No payment was completed.",
+              );
+          }
         }
         // A send or request is absent while its key has no entry. An approval
         // or decline is absent while the request is still pending.
