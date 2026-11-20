@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { readFile, readdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { join, relative, resolve } from "node:path";
@@ -99,6 +100,30 @@ async function rpcOrigins(folder) {
   return origins;
 }
 
+// Each evidence run records the commit it tested. That commit must be in this
+// branch's history, so the evidence describes code that was merged. This needs the
+// full history: a shallow clone cannot tell.
+const git = (...args) =>
+  execFileSync("git", args, {
+    cwd: root,
+    encoding: "utf8",
+    stdio: ["ignore", "pipe", "ignore"],
+  }).trim();
+let history;
+try {
+  history = git("rev-parse", "--is-shallow-repository") === "false";
+} catch {
+  history = false;
+}
+const inHistory = (revision) => {
+  try {
+    git("merge-base", "--is-ancestor", revision, "HEAD");
+    return true;
+  } catch {
+    return false;
+  }
+};
+
 // Committed evidence is complete: one chain run and one browser run for each
 // viewport. Each implementation validates the full shape against its schema copy.
 function checkEvidence(path, text) {
@@ -142,6 +167,12 @@ function checkEvidence(path, text) {
         !run.transactions?.length)
     )
       problems.push(`${path} ${name} run passed without the scenario result`);
+    if (!/^[0-9a-f]{40}$/.test(run.revision ?? ""))
+      problems.push(`${path} ${name} run has no commit revision`);
+    else if (history && !inHistory(run.revision))
+      problems.push(
+        `${path} ${name} run tested ${run.revision.slice(0, 8)}, which is not in this branch's history`,
+      );
   }
   // Evidence is public. It must never hold keys or signed transactions.
   if (
@@ -197,6 +228,10 @@ for (const folder of await implementations()) {
     if (!shared.includes(file))
       failures.push(`${name}/${file} is not in the Ethereum implementation`);
 }
+if (!history)
+  failures.push(
+    "Evidence revisions need the full git history. In CI, check out with fetch-depth: 0; locally, run git fetch --unshallow.",
+  );
 if (failures.length) {
   console.error(failures.join("\n"));
   process.exit(1);
