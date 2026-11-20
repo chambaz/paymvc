@@ -1,7 +1,10 @@
 use super::*;
 use soroban_sdk::{
-    IntoVal,
-    testutils::{Address as _, Ledger, MockAuth, MockAuthInvoke, storage::Instance},
+    Event, IntoVal,
+    testutils::{
+        Address as _, Events, Ledger, MockAuth, MockAuthInvoke,
+        storage::{Instance, Persistent},
+    },
 };
 
 struct Demo {
@@ -382,6 +385,8 @@ fn activity_pages_are_newest_first() {
         d.client().request(&d.users[0], &d.users[1], &1, &d.op(n));
     }
     let c = d.client();
+    // A full page must fit the default per-call budget that the network enforces.
+    d.env.cost_estimate().budget().reset_default();
     let first = c.activity(&d.users[0], &55, &50);
     let second = c.activity(&d.users[0], &5, &50);
     assert_eq!(first.len(), 50);
@@ -446,4 +451,83 @@ fn every_write_extends_the_instance_lifetime() {
     age();
     c.send(&u[0], &u[1], &1, &d.op(2));
     assert_eq!(ttl(), full);
+}
+
+#[test]
+fn distinct_operations_with_the_same_values_both_succeed() {
+    let d = Demo::new();
+    d.register();
+    let c = d.client();
+    c.request(&d.users[0], &d.users[1], &5, &d.op(1));
+    c.request(&d.users[0], &d.users[1], &5, &d.op(2));
+    c.send(&d.users[0], &d.users[1], &5, &d.op(3));
+    c.send(&d.users[0], &d.users[1], &5, &d.op(4));
+    assert_eq!(c.activity_count(&d.users[0]), 4);
+    assert_eq!(d.credits().balance(&d.users[1]), 110);
+}
+
+#[test]
+fn events_describe_each_change() {
+    let d = Demo::new();
+    d.register();
+    let c = d.client();
+    let (a, b) = (&d.users[0], &d.users[1]);
+    c.request(a, b, &20, &d.op(1));
+    assert_eq!(
+        d.env.events().all().filter_by_contract(&d.app),
+        [Created {
+            from: a.clone(),
+            to: b.clone(),
+            operation: d.op(1),
+            amount: 20,
+            kind: Kind::Request,
+        }
+        .to_xdr(&d.env, &d.app)]
+    );
+    c.decline(b, a, &d.op(1));
+    assert_eq!(
+        d.env.events().all().filter_by_contract(&d.app),
+        [Resolved {
+            from: a.clone(),
+            operation: d.op(1),
+            state: State::Declined,
+        }
+        .to_xdr(&d.env, &d.app)]
+    );
+    let newcomer = Address::generate(&d.env);
+    c.register(&newcomer);
+    assert_eq!(
+        d.env.events().all().filter_by_contract(&d.app),
+        [Registered { account: newcomer }.to_xdr(&d.env, &d.app)]
+    );
+}
+
+#[test]
+fn payments_keep_both_profiles_and_their_records_live() {
+    let d = Demo::new();
+    d.register();
+    let (a, b) = (&d.users[0], &d.users[1]);
+    let ttl = |key: &Key| {
+        d.env
+            .as_contract(&d.app, || d.env.storage().persistent().get_ttl(key))
+    };
+    let start = ttl(&Key::Profile(b.clone()));
+    // Time passes without any write to B's profile.
+    d.env
+        .ledger()
+        .with_mut(|ledger| ledger.sequence_number += TTL / 2 + 1);
+    assert!(ttl(&Key::Profile(b.clone())) < start);
+    d.client().send(a, b, &1, &d.op(1));
+    assert!(ttl(&Key::Profile(b.clone())) >= TTL / 2);
+    assert!(ttl(&Key::Profile(a.clone())) >= TTL / 2);
+    assert!(ttl(&Key::Entry(a.clone(), d.op(1))) >= TTL / 2);
+    assert!(ttl(&Key::Activity(b.clone(), 0)) >= TTL / 2);
+    // Approving a request also extends the requester's profile.
+    d.client().request(a, b, &2, &d.op(2));
+    d.env
+        .ledger()
+        .with_mut(|ledger| ledger.sequence_number += TTL / 2 + 1);
+    assert!(ttl(&Key::Profile(a.clone())) < TTL / 2);
+    d.client().approve(b, a, &d.op(2));
+    assert!(ttl(&Key::Profile(a.clone())) >= TTL / 2);
 }

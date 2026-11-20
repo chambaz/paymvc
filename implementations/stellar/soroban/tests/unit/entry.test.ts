@@ -1,13 +1,8 @@
 import { expect, it } from "vitest";
-import {
-  Address,
-  Keypair,
-  nativeToScVal,
-  scValToNative,
-  xdr,
-} from "@stellar/stellar-sdk";
+import { Address, Keypair, nativeToScVal, xdr } from "@stellar/stellar-sdk";
 import { Buffer } from "buffer";
 import { parseEntry } from "../../src/chain/payments";
+import { paymvcSpec } from "../../src/chain/generated/specs";
 
 const from = Keypair.random().publicKey();
 const to = Keypair.random().publicKey();
@@ -32,8 +27,12 @@ const entry = (kind: string, state: string) =>
     ),
   );
 
+/** Decodes the result of `entry(from, operation)` with the contract's spec, as the app does. */
+const decode = (value: xdr.ScVal) =>
+  parseEntry(paymvcSpec.funcResToNative("entry", value));
+
 it("decodes an entry and keys it by (from, operation)", () => {
-  expect(parseEntry(scValToNative(entry("Request", "Paid")))).toEqual({
+  expect(decode(entry("Request", "Paid"))).toEqual({
     from,
     to,
     operation: operation.toString("hex"),
@@ -45,8 +44,6 @@ it("decodes an entry and keys it by (from, operation)", () => {
 });
 
 it("rejects unknown kinds and states", () => {
-  expect(() => parseEntry(scValToNative(entry("Refund", "Paid")))).toThrow();
-  expect(() =>
-    parseEntry(scValToNative(entry("Request", "Expired"))),
-  ).toThrow();
+  expect(() => decode(entry("Refund", "Paid"))).toThrow();
+  expect(() => decode(entry("Request", "Expired"))).toThrow();
 });

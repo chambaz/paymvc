@@ -27,13 +27,14 @@ struct Allowance {
 #[contracterror]
 #[derive(Copy, Clone, Debug, Eq, PartialEq)]
 #[repr(u32)]
+/// Codes start at 100, so they never match a PayMVC error code that a caller reports.
 pub enum Error {
-    InvalidAmount = 1,
-    InsufficientBalance = 2,
-    InsufficientAllowance = 3,
-    InvalidExpiry = 4,
-    Overflow = 5,
-    InvalidConfiguration = 6,
+    InvalidAmount = 100,
+    InsufficientBalance = 101,
+    InsufficientAllowance = 102,
+    InvalidExpiry = 103,
+    Overflow = 104,
+    InvalidConfiguration = 105,
 }
 
 /// Extends the contract instance and, when given, one persistent entry.
@@ -149,7 +150,9 @@ impl TokenInterface for Credits {
     fn approve(e: Env, from: Address, spender: Address, amount: i128, live_until_ledger: u32) {
         from.require_auth();
         nonnegative(&e, amount);
-        if amount > 0 && live_until_ledger < e.ledger().sequence() {
+        if (amount > 0 && live_until_ledger < e.ledger().sequence())
+            || live_until_ledger > e.ledger().max_live_until_ledger()
+        {
             panic_with_error!(&e, Error::InvalidExpiry);
         }
         keep(&e, None);

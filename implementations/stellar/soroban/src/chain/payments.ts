@@ -1,17 +1,9 @@
-import {
-  Address,
-  Contract,
-  Horizon,
-  nativeToScVal,
-  StrKey,
-  xdr,
-} from "@stellar/stellar-sdk";
+import { Contract, Keypair, StrKey, xdr } from "@stellar/stellar-sdk";
 import { Buffer } from "buffer";
-import { z } from "zod";
 import { server, type Deployment } from "./config";
+import { creditsSpec, paymvcSpec } from "./generated/specs";
 import {
   accountFor,
-  isAddress,
   parseAmount,
   validateOperation,
   type Intent,
@@ -24,23 +16,64 @@ import {
   type Progress,
 } from "./transactions";
 
-const addr = (value: string) => new Address(value).toScVal();
-const bytes = (value: string) =>
-  nativeToScVal(Buffer.from(value, "hex"), { type: "bytes" });
-const num = (value: bigint, type: "i128" | "u64" = "i128") =>
-  nativeToScVal(value, { type });
-// contracts/paymvc stores Kind and State as `#[contracttype]` enums. A unit
-// variant reads as a one-item list with its name, for example ["Paid"].
-const variant = <const T extends readonly [string, ...string[]]>(names: T) =>
-  z.tuple([z.enum(names)]).transform(([name]) => name);
-const entrySchema = z.object({
-  from: z.string().refine(isAddress),
-  to: z.string().refine(isAddress),
-  operation: z.instanceof(Uint8Array),
-  amount: z.bigint(),
-  kind: variant(["Transfer", "Request"]),
-  state: variant(["Pending", "Paid", "Declined"]),
-});
+type Spec = typeof paymvcSpec;
+/** Simulates a read-only call. The contract's spec encodes the arguments and decodes the result. */
+async function call<T>(
+  c: Deployment,
+  source: string,
+  spec: Spec,
+  contract: string,
+  method: string,
+  args: object = {},
+): Promise<T> {
+  const retval = await readContract(
+    c,
+    source,
+    contract,
+    method,
+    spec.funcArgsToScVals(method, args),
+  );
+  return spec.funcResToNative(method, retval) as T;
+}
+/** A read of contracts/paymvc. */
+export const readApp = <T>(
+  c: Deployment,
+  source: string,
+  method: string,
+  args?: object,
+) => call<T>(c, source, paymvcSpec, c.contract, method, args);
+/** A read of contracts/credits, the SEP-41 token. */
+export const readToken = <T>(
+  c: Deployment,
+  source: string,
+  method: string,
+  args?: object,
+) => call<T>(c, source, creditsSpec, c.token, method, args);
+
+/** `Entry` in contracts/paymvc, as the spec decodes it. Unit enum variants decode as `{ tag }`. */
+interface RawEntry {
+  from: string;
+  to: string;
+  operation: Buffer;
+  amount: bigint;
+  kind: { tag: "Transfer" | "Request" };
+  state: { tag: "Pending" | "Paid" | "Declined" };
+}
+export function parseEntry(raw: RawEntry) {
+  const operation = Buffer.from(raw.operation).toString("hex");
+  return {
+    from: raw.from,
+    to: raw.to,
+    amount: raw.amount,
+    kind: raw.kind.tag,
+    state: raw.state.tag,
+    operation,
+    id: `${raw.from}:${operation}`,
+  };
+}
+export type ActivityEntry = ReturnType<typeof parseEntry>;
+const operationBytes = (value: string) => Buffer.from(value, "hex");
+
 export class FundingRequired extends Error {
   constructor() {
     super(
@@ -52,25 +85,31 @@ export class FundingRequired extends Error {
 // TTL (a call pays this about every 15 days), and fees for the scenario.
 const REQUIRED_STROOPS = 50_000_000n;
 export async function fundingBudget(c: Deployment, owner: string) {
-  const response = await fetch(`${c.horizonUrl}/accounts/${owner}`, {
-    signal: AbortSignal.timeout(15_000),
-  });
-  if (response.status === 404)
-    return { balance: 0n, required: REQUIRED_STROOPS };
-  if (!response.ok)
-    throw new Error("Could not check XLM funding. Please retry.");
-  const data = (await response.json()) as Horizon.ServerApi.AccountRecord;
-  const balance = data.balances.find(
-    (item) => item.asset_type === "native",
-  )?.balance;
-  if (!balance || !/^\d+\.\d{7}$/.test(balance))
-    throw new Error("Invalid XLM balance response.");
+  // Read the account entry directly: the SDK's getAccountEntry reports every RPC
+  // failure as "not found", which would look like an unfunded wallet.
+  const key = xdr.LedgerKey.account(
+    new xdr.LedgerKeyAccount({
+      accountId: Keypair.fromPublicKey(owner).xdrPublicKey(),
+    }),
+  );
+  const { entries } = await server(c)
+    .getLedgerEntries(key)
+    .catch(() => {
+      throw new Error("Could not check XLM funding. Please retry.");
+    });
+  const entry = entries[0]?.val;
   return {
-    balance: BigInt(balance.replace(".", "")),
+    // No entry: Friendbot has not created the account yet.
+    balance: entry?.type === "account" ? entry.account.balance : 0n,
     required: REQUIRED_STROOPS,
   };
 }
+
+/** Deployments that passed verification in this page. The contracts cannot change. */
+const verified = new Set<string>();
+
 export async function verifyDeployment(c: Deployment) {
+  if (verified.has(c.contract)) return;
   const client = server(c);
   if ((await client.getNetwork()).passphrase !== c.passphrase)
     throw new Error("This RPC belongs to a different network.");
@@ -105,45 +144,35 @@ export async function verifyDeployment(c: Deployment) {
   }
   const source = StrKey.encodeEd25519PublicKey(Buffer.alloc(32));
   const [token, decimals] = await Promise.all([
-    readContract(c, source, c.contract, "token"),
-    readContract(c, source, c.token, "decimals"),
+    readApp<string>(c, source, "token"),
+    readToken<number>(c, source, "decimals"),
   ]);
   if (token !== c.token || decimals !== 0)
     throw new Error("Deployment token configuration does not match the app.");
-}
-export function parseEntry(raw: unknown) {
-  const entry = entrySchema.parse(raw);
-  const operation = Buffer.from(entry.operation).toString("hex");
-  return { ...entry, operation, id: `${entry.from}:${operation}` };
+  verified.add(c.contract);
 }
 // Reads the newest `limit` entries. `before` is an absolute history index, so a
 // record that lands between page reads cannot shift or repeat a row.
 export async function readDashboard(c: Deployment, s: Session, limit = 50) {
   const owner = accountFor(s).address;
-  const read = (contract: string, method: string, args: xdr.ScVal[]) =>
-    readContract(c, owner, contract, method, args);
   const [balance, count] = await Promise.all([
-    read(c.token, "balance", [addr(owner)]),
-    read(c.contract, "activity_count", [addr(owner)]),
+    readToken<bigint>(c, owner, "balance", { id: owner }),
+    readApp<bigint>(c, owner, "activity_count", { account: owner }),
   ]);
-  const total = z.bigint().parse(count);
-  const entries: ReturnType<typeof parseEntry>[] = [];
-  for (let before = total; before > 0n && entries.length < limit;) {
-    const page = z
-      .array(z.unknown())
-      .parse(
-        await read(c.contract, "activity", [
-          addr(owner),
-          num(before, "u64"),
-          nativeToScVal(Math.min(50, limit - entries.length), { type: "u32" }),
-        ]),
-      )
-      .map(parseEntry);
+  const entries: ActivityEntry[] = [];
+  for (let before = count; before > 0n && entries.length < limit;) {
+    const page = (
+      await readApp<RawEntry[]>(c, owner, "activity", {
+        account: owner,
+        before,
+        limit: Math.min(50, limit - entries.length),
+      })
+    ).map(parseEntry);
     if (!page.length) break;
     entries.push(...page);
     before -= BigInt(page.length);
   }
-  return { balance: z.bigint().parse(balance), count: total, entries };
+  return { balance, count, entries };
 }
 export function payments(
   c: Deployment,
@@ -151,12 +180,36 @@ export function payments(
   persist: () => void,
   progress: Progress,
 ) {
-  const read = (method: string, args: xdr.ScVal[]) =>
-    readContract(c, accountFor(s).address, c.contract, method, args);
-  const invoke = (label: string, method: string, args: xdr.ScVal[]) =>
-    transact(c, s, persist, progress, label, async () => [
-      new Contract(c.contract).call(method, ...args),
-    ]);
+  const read = <T>(method: string, args: object) =>
+    readApp<T>(c, accountFor(s).address, method, args);
+  const invoke = (
+    label: string,
+    method: string,
+    args: object,
+    absent: () => Promise<boolean>,
+  ) =>
+    transact(
+      c,
+      s,
+      persist,
+      progress,
+      label,
+      async () => [
+        new Contract(c.contract).call(
+          method,
+          ...paymvcSpec.funcArgsToScVals(method, args),
+        ),
+      ],
+      absent,
+    );
+  /** The chain shows the effect of a saved transaction, so it is confirmed. */
+  const confirmSaved = (label: string) => {
+    const record = s.journal[label];
+    if (record && !record.confirmed) {
+      record.confirmed = true;
+      persist();
+    }
+  };
   async function execute(intent: Intent) {
     await verifyDeployment(c);
     validateOperation(intent.operation);
@@ -170,7 +223,10 @@ export function payments(
     if (!creating && intent.id !== `${from}:${operation}`)
       throw new Error("The request ID does not match its requester.");
     const check = async () => {
-      const raw = await read("entry", [addr(from), bytes(operation)]);
+      const raw = await read<RawEntry | null>("entry", {
+        from,
+        operation: operationBytes(operation),
+      });
       if (raw === null || raw === undefined) return false;
       const entry = parseEntry(raw);
       if (
@@ -190,14 +246,28 @@ export function payments(
         );
       return entry.state === expected;
     };
-    if ((await check()) && !s.journal[intent.operation]) return;
+    // The entry proves the effect, even after RPC history no longer has the transaction.
+    if (await check()) return confirmSaved(intent.operation);
     // Soroban has no implicit caller: the signer is an explicit, authorized argument.
     await invoke(
       intent.operation,
       intent.action,
-      creating
-        ? [addr(actor), addr(intent.recipient), num(amount), bytes(operation)]
-        : [addr(actor), addr(from), bytes(operation)],
+      intent.action === "send"
+        ? {
+            from: actor,
+            to: intent.recipient,
+            amount,
+            operation: operationBytes(operation),
+          }
+        : intent.action === "request"
+          ? {
+              from: actor,
+              payer: intent.recipient,
+              amount,
+              operation: operationBytes(operation),
+            }
+          : { payer: actor, from, operation: operationBytes(operation) },
+      async () => !(await check()),
     );
     if (!(await check())) throw new ResultPending();
   }
@@ -209,10 +279,17 @@ export function payments(
     if (!Object.keys(s.journal).length && budget.balance < budget.required)
       throw new FundingRequired();
     progress("Registering your wallet");
-    if (!(await read("registered", [addr(visitor)])) || s.journal.register)
-      await invoke("register", "register", [addr(visitor)]);
-    if ((await read("registered", [addr(visitor)])) !== true)
-      throw new ResultPending();
+    const registered = () => read<boolean>("registered", { account: visitor });
+    // Only this wallet's signature can register it, so membership proves the saved transaction.
+    if (await registered()) confirmSaved("register");
+    else
+      await invoke(
+        "register",
+        "register",
+        { owner: visitor },
+        async () => !(await registered()),
+      );
+    if ((await registered()) !== true) throw new ResultPending();
     s.ready = true;
     persist();
   }
@@ -221,17 +298,11 @@ export function payments(
 
 export async function readContacts(c: Deployment, s: Session, start: bigint) {
   const owner = accountFor(s).address;
-  const total = z
-    .bigint()
-    .parse(await readContract(c, owner, c.contract, "profile_count"));
-  const page = z
-    .array(z.string().refine(isAddress))
-    .parse(
-      await readContract(c, owner, c.contract, "profiles", [
-        num(start, "u64"),
-        nativeToScVal(6, { type: "u32" }),
-      ]),
-    );
+  const total = await readApp<bigint>(c, owner, "profile_count");
+  const page = await readApp<string[]>(c, owner, "profiles", {
+    start,
+    limit: 6,
+  });
   const addresses: string[] = [];
   let next = start;
   for (const address of page) {
@@ -239,5 +310,10 @@ export async function readContacts(c: Deployment, s: Session, start: bigint) {
     if (address !== owner) addresses.push(address);
     if (addresses.length === 5) break;
   }
-  return { addresses, next: next < total ? next : undefined };
+  let more = next < total || next < start + BigInt(page.length);
+  // The count and the page are separate reads. A registration between them can make a
+  // full page reach past the count, so count again before ending the list.
+  if (!more && page.length === 6)
+    more = (await readApp<bigint>(c, owner, "profile_count")) > next;
+  return { addresses, next: more ? next : undefined };
 }

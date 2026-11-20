@@ -2,12 +2,11 @@ import { execFileSync } from "node:child_process";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { setTimeout as sleep } from "node:timers/promises";
 import { isDeepStrictEqual } from "node:util";
-import { Address } from "@stellar/stellar-sdk";
 import Ajv from "ajv";
 import addFormats from "ajv-formats";
 import { z } from "zod";
 import type { Deployment } from "../src/chain/config";
-import { readContract } from "../src/chain/transactions";
+import { readApp, readToken } from "../src/chain/payments";
 
 export type Viewport = "desktop" | "mobile";
 type Run = {
@@ -86,10 +85,9 @@ async function transactions(c: Deployment, users: { a: string; b: string }) {
 }
 
 async function state(c: Deployment, owner: string) {
-  const address = new Address(owner).toScVal();
   const [balance, count] = await Promise.all([
-    readContract(c, owner, c.token, "balance", [address]),
-    readContract(c, owner, c.contract, "activity_count", [address]),
+    readToken<bigint>(c, owner, "balance", { id: owner }),
+    readApp<bigint>(c, owner, "activity_count", { account: owner }),
   ]);
   return { balance: z.bigint().parse(balance), count: z.bigint().parse(count) };
 }

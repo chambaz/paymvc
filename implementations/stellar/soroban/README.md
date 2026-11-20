@@ -4,7 +4,7 @@ Standalone single-wallet PayMVC browser and contracts for Stellar Testnet. This 
 
 ## 1. Run
 
-Use Node 24.21.0, Rust 1.96.0, Stellar CLI 26.1.0, and Soroban SDK 29.0.1 (locked in Cargo.toml). Install the Rust `wasm32v1-none` target. Build contracts with `stellar contract build`; bare `cargo build` does not process this SDK's contract specifications.
+Use Node 24.21.0, Rust 1.96.0, Stellar CLI 30.0.1, and Soroban SDK 29.0.1 (locked in Cargo.toml). Install the Rust `wasm32v1-none` target. Build contracts with `stellar contract build`; bare `cargo build` does not process this SDK's contract specifications.
 
 ```bash
 npm ci
@@ -38,6 +38,8 @@ Chain code is in `src/chain/`:
 - `session.ts` creates, validates, and stores the disposable key, the transaction journal, and the unresolved intent. `isAddress` is the one address rule for account (`G…`) and contract (`C…`) addresses, because a contract can register itself.
 - `transactions.ts` builds, simulates, signs, saves, submits, and reconciles native transactions. `readContract` reads through simulation.
 - `payments.ts` handles setup, sends, requests, approvals, and declines, and checks each on-chain effect. It also reads contacts, balance, and activity.
+- `generated/specs.ts` holds the contract specs that `npm run contracts:build` reads from the WASM. The client encodes every argument and decodes every result with them (`contract.Spec`), so the app always matches the contract types. Do not edit it; `npm run check` fails if it is out of date.
+- `errors.ts` names the contract error in a failed simulation, for example `Error(Contract, #2)` becomes "Choose a different, registered PayMVC account."
 
 `src/hooks/use-demo.ts` handles the browser lifecycle. `scripts/deploy.ts` runs the Stellar CLI deployment.
 
@@ -60,7 +62,9 @@ Chain code is in `src/chain/`:
 | activity       | `activity(account, before: u64, limit: u32) -> Vec<Entry>`  |
 | token          | `token() -> Address` (the credits contract)                 |
 
-`Entry { from, to, operation, amount, kind, state }`. `Kind { Transfer, Request }` and `State { Pending, Paid, Declined }` are `#[contracttype]` enums. Errors: `AlreadyRegistered`, `NotRegistered`, `InvalidParticipants`, `InvalidAmount`, `InvalidOperation`, `OperationUsed`, `NotFound`, `Unauthorized`, `NotPending`, `InvalidPage` (codes 1 to 10).
+`Entry { from, to, operation, amount, kind, state }`. `Kind { Transfer, Request }` and `State { Pending, Paid, Declined }` are `#[contracttype]` enums. Errors: `AlreadyRegistered`, `NotRegistered`, `InvalidParticipants`, `InvalidAmount`, `InvalidOperation`, `OperationUsed`, `NotFound`, `Unauthorized`, `NotPending`, `InvalidPage` (codes 1 to 10). The credits contract numbers its errors from 100, so a token error that passes up through `send` or `approve` cannot look like a PayMVC error.
+
+Events (`#[contractevent]`): `Registered { account }`, `Created { from, to, operation, amount, kind }`, and `Resolved { from, operation, state }`. The app reads state, not events; the events let explorers and indexers follow payments.
 
 Native deviations from the canonical interface:
 
@@ -74,7 +78,7 @@ An entry is stored under its key `(from, operation)`; there is no global entry I
 
 Registration atomically adds membership, appends the address to the directory, and mints exactly 100 credits. The directory count and the token address are in instance storage. Profiles, directory members, entries, and activity are in persistent storage. Directory pages contain at most 50 addresses in registration order. The frontend reads at most six entries to show five other addresses, excludes self, and retains recipient selection during pagination.
 
-Every write extends the TTL of the contract instance and of each persistent entry it writes, toward 518,400 ledgers (capped by the network maximum). Each crate has one TTL helper, `keep`. Reads do not extend TTL: they are simulations, so an extension would not persist. Archived persistent entries keep their identity and are restored, never treated as a new profile or an unused operation. Ordinary invocation simulation includes automatic restoration where the network supports it. A separate restore preamble or an archived contract instance produces an explicit restore error.
+Every write extends the TTL of the contract instance and of each persistent entry it writes, toward 518,400 ledgers (capped by the network maximum). A payment also extends both participants' profiles, so active users stay live. Each crate has one TTL helper, `keep`. Reads do not extend TTL: they are simulations, so an extension would not persist. Archived persistent entries keep their identity and are restored, never treated as a new profile or an unused operation. Since Protocol 23, simulation restores archived entries that a contract call needs automatically. If simulation still returns a separate restore preamble, the client reports that a restore is needed instead of signing.
 
 ## 3. Token model
 
@@ -92,9 +96,11 @@ The displayed funding requirement is 5 XLM: 1 XLM for the account's minimum bala
 
 ## 5. Confirmation and recovery
 
-`src/chain/transactions.ts` simulates each contract call before signing to obtain resources, fees, and restoration requirements. It saves the envelope, hash, and preparation ledger before broadcast. Confirmation requires RPC `SUCCESS` in a closed ledger, followed by an application-state check. Stellar uses consensus finality rather than an EVM-style confirmation depth; this threshold still depends on the connected RPC and network.
+`src/chain/transactions.ts` simulates each contract call before signing to obtain resources, fees, and restoration requirements. A failed simulation is reported by its contract error name, and nothing is signed. The inclusion fee is the network's recent 90th percentile (`getFeeStats`), from 0.001 to 0.01 XLM, so a transaction lands under surge pricing instead of expiring. The client saves the envelope, hash, and preparation ledger before broadcast. Confirmation requires RPC `SUCCESS` in a closed ledger, followed by an application-state check. Stellar uses consensus finality rather than an EVM-style confirmation depth; this threshold still depends on the connected RPC and network.
 
-Signed envelopes have a 180-second lifetime based on ledger time. A missing transaction proves expiry only when the latest closed ledger is past its deadline and the RPC's oldest retained ledger covers its preparation ledger. If history is incomplete, retain the evidence and report uncertainty. Retry checks the same hash and can rebroadcast the same bytes. Proven expiry or failure requires explicit retry; the application operation ID stays unchanged. Before a new submission, the client looks up `entry(from, operation)`: an existing entry with the expected state proves that an earlier transaction landed, and the contract rejects a second entry with `OperationUsed`.
+Signed envelopes have a 180-second lifetime based on ledger time. A missing transaction proves expiry only when the latest closed ledger is past its deadline and either the RPC's oldest retained ledger covers its preparation ledger, or a state read after that ledger shows that the operation did not happen (`entry(from, operation)` or `registered`). The contract rejects a reused operation ID, so a later read cannot miss an earlier landing. If neither check succeeds, retain the evidence and report uncertainty. Retry checks the same hash and can rebroadcast the same bytes. Proven expiry or failure requires explicit retry; the application operation ID stays unchanged. Before a new submission, the client looks up `entry(from, operation)`: an existing entry with the expected state proves that an earlier transaction landed, and the contract rejects a second entry with `OperationUsed`. That proof also confirms a saved transaction that RPC history no longer covers (about seven days by default), so an old unknown outcome resolves without a hash lookup. Setup does the same with `registered`.
+
+The browser verifies the network passphrase, both WASM hashes, the token address, and its zero decimals once per page load, before the first operation. It reads the XLM balance from the RPC (`getLedgerEntries`), so the browser makes no Horizon calls. The scripts still use Horizon.
 
 The browser uses Web Locks for one writer per session. Reload restores saved identities and unresolved operations. Setup performs one automatic recheck for unknown or delayed outcomes; interactive actions recheck delayed state once. Further recovery requires explicit retry. Reset clears only this deployment's browser session and does not cancel chain transactions.
 

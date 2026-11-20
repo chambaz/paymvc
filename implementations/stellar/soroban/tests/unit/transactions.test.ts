@@ -58,7 +58,7 @@ beforeEach(() => {
     preparedLedger: 10,
   };
 });
-const run = () =>
+const run = (absent?: () => Promise<boolean>) =>
   transact(
     c,
     s,
@@ -68,6 +68,7 @@ const run = () =>
     async () => {
       throw new Error("Must reuse saved bytes");
     },
+    absent,
   );
 it("preserves bytes after a failed submission and reconciles later success", async () => {
   mocks.get.mockResolvedValue(missing);
@@ -94,6 +95,44 @@ it("retains evidence when history no longer covers its submission", async () => 
   });
   mocks.send.mockRejectedValue(new Error("expired"));
   await expect(run()).rejects.toBeInstanceOf(BroadcastUnavailable);
+  expect(s.journal.test).toBeDefined();
+});
+it("proves expiry from state when history no longer covers its submission", async () => {
+  mocks.get.mockResolvedValue({
+    ...missing,
+    latestLedgerCloseTime: 201,
+    oldestLedger: 11,
+  });
+  await expect(run(async () => true)).rejects.toBeInstanceOf(
+    ExpiredTransaction,
+  );
+  expect(s.journal.test).toBeUndefined();
+  expect(mocks.send).not.toHaveBeenCalled();
+});
+it("keeps evidence when state shows the effect or cannot be read", async () => {
+  mocks.get.mockResolvedValue({
+    ...missing,
+    latestLedgerCloseTime: 201,
+    oldestLedger: 11,
+  });
+  mocks.send.mockRejectedValue(new Error("expired"));
+  await expect(run(async () => false)).rejects.toBeInstanceOf(
+    BroadcastUnavailable,
+  );
+  expect(s.journal.test).toBeDefined();
+  await expect(
+    run(async () => {
+      throw new Error("RPC down");
+    }),
+  ).rejects.toBeInstanceOf(UnknownOutcome);
+  expect(s.journal.test).toBeDefined();
+});
+it("never uses state before the deadline", async () => {
+  mocks.get.mockResolvedValue({ ...missing, oldestLedger: 11 });
+  mocks.send.mockRejectedValue(new Error("busy"));
+  const absent = vi.fn(async () => true);
+  await expect(run(absent)).rejects.toBeInstanceOf(BroadcastUnavailable);
+  expect(absent).not.toHaveBeenCalled();
   expect(s.journal.test).toBeDefined();
 });
 it("stops before broadcast when signed evidence cannot be saved", async () => {

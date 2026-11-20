@@ -14,7 +14,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { Contract, Networks } from "@stellar/stellar-sdk";
 import { parseDeployment, server, type Deployment } from "../src/chain/config";
 import { verifyDeployment } from "../src/chain/payments";
-import { readContract } from "../src/chain/transactions";
+import { readApp } from "../src/chain/payments";
 
 const local = process.env.LOCAL === "1";
 const c: Deployment = {
@@ -127,7 +127,7 @@ if (!existing.entries.length) {
 }
 
 // 4. Verify network, code hashes, token address, and zero decimals, then publish.
-c.token = String(await readContract(c, deployer, c.contract, "token"));
+c.token = await readApp<string>(c, deployer, "token");
 await verifyDeployment(c);
 const output = local ? "public/local.json" : "public/deployment.json";
 await writeFile(output, JSON.stringify(parseDeployment(c), null, 2) + "\n");
