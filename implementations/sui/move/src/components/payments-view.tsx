@@ -114,6 +114,8 @@ export interface ViewProps {
   pending: boolean;
   pendingRequestId?: string;
   unknown: boolean;
+  dismissible: boolean;
+  saved: boolean;
   hasMore: boolean;
   loadingMore?: boolean;
   faucetUrl: string;
@@ -154,6 +156,8 @@ export function PaymentsView(props: ViewProps) {
     error: props.error,
     pending: props.pending,
     unknown: props.unknown,
+    dismissible: props.dismissible,
+    saved: props.saved,
     onRetry: props.onRetry,
     onDismiss: props.onDismiss,
   };

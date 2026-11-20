@@ -41,13 +41,19 @@ const c: Deployment = {
 const directory = `.local/cli-${c.network}`;
 await mkdir(directory, { recursive: true, mode: 0o700 });
 
+// The CLI reads the network from the environment, never from arguments, which other
+// local users can read. RPC_URL can hold a provider key.
 const stellar = (...args: string[]) =>
   execFileSync("stellar", ["--config-dir", directory, ...args], {
     encoding: "utf8",
     stdio: ["ignore", "pipe", "inherit"],
+    env: {
+      ...process.env,
+      STELLAR_RPC_URL: c.rpcUrl,
+      STELLAR_NETWORK_PASSPHRASE: c.passphrase,
+    },
   }).trim();
-const network = ["--rpc-url", c.rpcUrl, "--network-passphrase", c.passphrase];
-const source = ["--source-account", "deployer", ...network];
+const source = ["--source-account", "deployer"];
 
 if ((await server(c).getNetwork()).passphrase !== c.passphrase)
   throw new Error("Wrong deployment network.");
@@ -70,7 +76,7 @@ const balance = async () => {
 };
 if ((await balance()) < required) {
   try {
-    stellar("keys", "fund", "deployer", ...network);
+    stellar("keys", "fund", "deployer");
   } catch {
     throw new Error(
       `Fund ${deployer} with at least 100 XLM through ${c.faucetUrl}, then retry.`,

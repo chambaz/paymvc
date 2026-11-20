@@ -26,14 +26,16 @@ export function simulationError(detail: string) {
 
 /**
  * A fixed message for an RPC failure. SDK messages can hold the endpoint URL, which
- * can hold a provider key, so the user never sees them.
+ * can hold a provider key, so the user never sees them. The failure can come before
+ * anything is signed, so the message does not say that progress is saved: the view
+ * shows the recovery actions when an operation is saved.
  */
 function rpcFailure(status?: number) {
   if (status === 429)
-    return "The RPC is rate-limiting requests. Your progress is saved. Wait a moment, then retry.";
+    return "The RPC is rate-limiting requests. Wait a moment, then retry.";
   if (status && status >= 500)
-    return "The RPC is temporarily unavailable. Your progress is saved. Retry when it responds.";
-  return "The RPC could not complete this step. Your progress is saved. Retry to check the original transactions.";
+    return "The RPC is temporarily unavailable. Retry when it responds.";
+  return "The RPC could not complete this step. Please retry.";
 }
 
 /** True for a browser fetch that failed before any response. */
@@ -53,7 +55,7 @@ export function readableError(error: unknown) {
     ?.status;
   if (typeof status === "number") return rpcFailure(status);
   if (/^timeout of \d+ms exceeded$/.test(error.message))
-    return "The RPC did not respond in time. Your progress is saved. Retry to check the same transactions.";
+    return "The RPC did not respond in time. Please retry.";
   if (networkFailure(error) || hasUrl(error.message)) return rpcFailure();
   // The chain module's own errors carry user-facing text.
   return error.message;

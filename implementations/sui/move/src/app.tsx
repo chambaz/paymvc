@@ -63,6 +63,8 @@ export function App({ config }: { config: Deployment }) {
           : undefined
       }
       unknown={demo.unknown}
+      dismissible={demo.dismissible}
+      saved={demo.saved}
       hasMore={Boolean(
         demo.dashboard.data && BigInt(rows.length) < demo.dashboard.data.count,
       )}

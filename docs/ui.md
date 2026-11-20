@@ -67,13 +67,15 @@ Show short, named progress messages during setup. Native preparation steps (for 
 
 The interface shows each of these states. Each has a visual baseline.
 
-| State           | What the user sees                                                        |
-| --------------- | ------------------------------------------------------------------------- |
-| Pending         | A progress message                                                        |
-| Outcome unknown | An alert, **Recheck original operation**                                  |
-| Failed          | An alert, **Recheck original operation** and **Dismiss failed operation** |
-| Stale read      | "Balance may be out of date". The last balance stays visible.             |
-| Read-only tab   | "Read-only tab". Another tab owns the session.                            |
+| State           | What the user sees                                            |
+| --------------- | ------------------------------------------------------------- |
+| Pending         | A progress message                                            |
+| Outcome unknown | An alert, **Recheck original operation**                      |
+| Failed          | An alert, **Retry** and **Dismiss failed operation**          |
+| Stale read      | "Balance may be out of date". The last balance stays visible. |
+| Read-only tab   | "Read-only tab". Another tab owns the session.                |
+
+**Recheck original operation** checks the saved transaction and never signs a new one. **Retry** shows when no transaction is saved, so the next attempt is signed new. **Dismiss failed operation** shows only when no saved transaction can still land.
 
 ## Reset
 

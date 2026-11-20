@@ -97,6 +97,9 @@ function Reference() {
       ? "2"
       : undefined,
     unknown: state === "unknown",
+    // A reverted attempt keeps no transaction, so it can be retried or dismissed.
+    dismissible: state === "failed",
+    saved: state !== "failed",
     hasMore: false,
     faucetUrl:
       "https://cloud.google.com/application/web3/faucet/ethereum/sepolia",

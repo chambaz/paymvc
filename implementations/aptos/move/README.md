@@ -108,7 +108,7 @@ aptos move publish --package-dir contracts --named-addresses paymvc=<deployer> -
 
 1. It creates `.local/testnet-deployer.json` if needed and prints its address.
 2. If the package is not yet published, it checks that the deployer holds at least 0.1 APT. If not, it prints the amount needed and stops. Publishing used 64,059 gas units, about 0.064 APT.
-3. It runs `aptos move publish` with the key in a temporary private file under `.local/`, removed afterwards. `Move.toml` sets `upgrade_policy = "immutable"`.
+3. It runs `aptos move publish` with a temporary CLI profile under `.local/` (mode 0600), removed afterwards. The profile holds the key and the endpoint, so neither appears on a command line. `RPC_URL` can select a keyed endpoint. `Move.toml` sets `upgrade_policy = "immutable"`.
 4. It finds the publish transaction among the deployer's first transactions, compiles the source for the deployer's address and checks that both published modules match it byte for byte, verifies the chain ID, the asset metadata, and the immutable policy, and writes `public/deployment.json`. The browser repeats the module hash and policy checks once per page load, and requires that the immutable package holds exactly `credits` and `paymvc`.
 
 A rerun after publication skips step 3 and verifies again. A second publication of the same immutable package fails on-chain, so a rerun cannot replace the code. A new deployment needs a new deployer address. The session key includes the package address and publish hash, so a new deployment gets new sessions. Keep `.local/` private.

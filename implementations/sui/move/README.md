@@ -107,7 +107,7 @@ sui client ptb --publish contracts --assign upgrade_cap --move-call 0x2::package
 
 The script creates `.local/testnet-deployer.json` if needed and prints only its address. Fund that address with at least 0.2 SUI, then rerun. The script writes a private CLI config and keystore to `.local/sui-testnet/` (mode 0600). The key never goes into command arguments or output.
 
-Each transaction is signed with `--serialize-signed-transaction` and saved in `.local/` before it is sent. The file name includes the network, its chain identifier, and the compiled package's digest. A rerun of the same code sends the same signed bytes, so it cannot publish twice. New code gets new files, so a redeploy never resends an older package. If a saved transaction expired without executing, delete its `.tx` file and rerun.
+Each transaction is signed with `--serialize-signed-transaction` and saved in `.local/` before it is sent. The file name includes the network, its chain identifier, and the compiled package's digest. A rerun of the same code sends the same signed bytes, so it cannot publish twice. New code gets new files, so a redeploy never resends an older package. If a saved transaction expired without executing, delete its `.tx` file and rerun. If `public/deployment.json` exists and the current build was never published, the script stops before it publishes: new code or a new CLI can compile different bytecode, and a new package is a new app. Run `npm run deploy -- --replace` to publish a new app on purpose.
 
 The Sui package manager does not publish to an ephemeral local chain with `ptb --publish`. Local runs (`npm run local`) use the package manager's `sui client test-publish --build-env testnet` command, then make the package immutable in a second transaction.
 

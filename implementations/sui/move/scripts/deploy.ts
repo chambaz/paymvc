@@ -118,6 +118,20 @@ function execute(label: string, command: string[]) {
   };
 }
 
+// A public deployment is the app's identity: wallets, the directory, and evidence refer
+// to it. New code, or a CLI that compiles different bytecode, would publish a new app,
+// so that needs --replace. A rerun of the same build resends its saved transactions.
+const record = "public/deployment.json";
+if (
+  !local &&
+  existsSync(record) &&
+  !existsSync(txFile("publish")) &&
+  !process.argv.includes("--replace")
+)
+  throw new Error(
+    `${record} names package ${JSON.parse(readFileSync(record, "utf8")).package}, and this build was never published. Nothing was published. Rerun with --replace to publish a new app.`,
+  );
+
 if (!existsSync(txFile("publish"))) {
   const { balance } = await client.getBalance({ owner: deployer.address });
   console.log(`Balance: ${balance.balance} MIST`);

@@ -9,6 +9,7 @@ import {
   rmSync,
   writeFileSync,
 } from "node:fs";
+import { resolve } from "node:path";
 import { Account, Ed25519PrivateKey, Hex } from "@aptos-labs/ts-sdk";
 import { normalizeAddress, parseDeployment, server } from "../src/chain/config";
 import { moduleHash, verifyDeployment, view } from "../src/chain/payments";
@@ -72,28 +73,40 @@ if (!published) {
     );
     process.exit(1);
   }
-  // The CLI reads the key from a private temporary file, never from arguments.
-  const dir = mkdtempSync(".local/publish-");
+  // The CLI reads the key and the endpoint from a private temporary profile, never
+  // from arguments, which other local users can read. The endpoint can hold a key.
+  const dir = resolve(mkdtempSync(".local/publish-"));
   try {
-    writeFileSync(`${dir}/key`, privateKey.toHexString(), { mode: 0o600 });
+    mkdirSync(`${dir}/.aptos`, { mode: 0o700 });
+    writeFileSync(
+      `${dir}/.aptos/config.yaml`,
+      [
+        "---",
+        "profiles:",
+        "  publish:",
+        "    network: Custom",
+        `    private_key: "${privateKey.toAIP80String()}"`,
+        `    public_key: "ed25519-pub-${deployer.publicKey.toString()}"`,
+        `    account: ${owner.slice(2)}`,
+        `    rest_url: "${rpcUrl.replace(/\/v1\/?$/, "")}"`,
+        "",
+      ].join("\n"),
+      { mode: 0o600 },
+    );
     execFileSync(
       "aptos",
       [
         "move",
         "publish",
         "--package-dir",
-        "contracts",
+        resolve("contracts"),
         "--named-addresses",
         `paymvc=${owner}`,
-        "--private-key-file",
-        `${dir}/key`,
-        "--sender-account",
-        owner,
-        "--url",
-        rpcUrl.replace(/\/v1\/?$/, ""),
+        "--profile",
+        "publish",
         "--assume-yes",
       ],
-      { stdio: "inherit" },
+      { stdio: "inherit", cwd: dir },
     );
   } finally {
     rmSync(dir, { recursive: true, force: true });

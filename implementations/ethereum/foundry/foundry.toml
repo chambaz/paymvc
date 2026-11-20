@@ -26,3 +26,6 @@ ethereum = "https://ethereum-sepolia-rpc.publicnode.com"
 base = "https://sepolia.base.org"
 monad = "https://testnet-rpc.monad.xyz"
 robinhood = "https://rpc.testnet.chain.robinhood.com"
+# A private endpoint from the RPC_URL environment variable, so that a keyed URL never
+# appears on a command line. scripts/deploy.ts selects it when RPC_URL is set.
+private = "${RPC_URL}"
