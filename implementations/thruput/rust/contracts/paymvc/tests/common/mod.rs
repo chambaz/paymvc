@@ -1,8 +1,11 @@
 use credits::{ERC20Client, ERC20Error, ERC20MetadataClient};
 use paymvc::{
-    ACTIVITY_PAGE, Entry, Kind, MAX_AMOUNT, PROFILE_PAGE, PayMVCClient, PaymentError, State,
+    ACTIVITY_PAGE, Created, Entry, Kind, MAX_AMOUNT, PROFILE_PAGE, PayMVCClient, PaymentError,
+    Registered, Resolved, State,
 };
 use std::panic::AssertUnwindSafe;
+use thruput_erc20_if::ERC20AllowanceExpiryClient;
+use thruput_sdk::event::{IntoTopic, Topic};
 use thruput_sdk::*;
 
 static OP: SHA256Hash = thruput_sdk::sha256_static!("OPERATION");
@@ -499,5 +502,124 @@ pub fn full_pages_fit_the_return_buffer(
                 .len() as u64,
             ACTIVITY_PAGE
         );
+    });
+}
+
+/// The credits token's own rules: limits, delegated spending, expiry, and metadata.
+pub fn credits_follow_the_token_rules(
+    env: &TestEnvironmentHandle,
+    app: &SHA256Hash,
+    token: &SHA256Hash,
+) {
+    let a = pair(env, app, token);
+    a.run(&alice(), |a| {
+        let credits = a.credits();
+        assert_eq!(ERC20MetadataClient::new(&a.token).decimals(), Some(0));
+        assert_eq!(credits.total_supply(), 200);
+        assert_eq!(
+            credits.try_transfer(&bob(), 101).unwrap_err().try_as(),
+            Some(ERC20Error::TooLarge)
+        );
+        assert_eq!(
+            credits.try_delete_balance().unwrap_err().try_as(),
+            Some(ERC20Error::BalanceNotZero)
+        );
+        // Bob may spend 10 of Alice's credits through the next block.
+        let until = thruput_sdk::block::get_block_height() + 1;
+        ERC20AllowanceExpiryClient::new(&a.token).reset_allowance(&bob(), until);
+        credits.adjust_allowance(&bob(), 10);
+        assert_eq!(credits.allowance(&alice(), &bob()), 10);
+    });
+    a.next_block();
+    a.run(&bob(), |a| {
+        let credits = a.credits();
+        credits.transfer_from(&alice(), &outsider(), 4);
+        assert_eq!(credits.allowance(&alice(), &bob()), 6);
+        assert_eq!(
+            credits
+                .try_transfer_from(&alice(), &outsider(), 7)
+                .unwrap_err()
+                .try_as(),
+            Some(ERC20Error::TooLarge)
+        );
+    });
+    a.next_block();
+    a.next_block();
+    a.run(&bob(), |a| {
+        let credits = a.credits();
+        // The allowance has expired, so it reads zero and cannot be spent.
+        assert_eq!(credits.allowance(&alice(), &bob()), 0);
+        assert_eq!(
+            credits
+                .try_transfer_from(&alice(), &outsider(), 1)
+                .unwrap_err()
+                .try_as(),
+            Some(ERC20Error::TooLarge)
+        );
+    });
+    a.run(&alice(), |a| {
+        let credits = a.credits();
+        credits.delete_allowance(&bob());
+        assert_eq!(credits.allowance(&alice(), &bob()), 0);
+        assert_eq!(credits.get_balance(), 96);
+        assert_eq!(credits.get_balance_of(&outsider()), 4);
+    });
+}
+
+/// Registration, creation, and resolution each emit one PayMVC event with the
+/// participants as topics and the operation, amount, kind, or state as payload.
+pub fn events_describe_each_change(
+    env: &TestEnvironmentHandle,
+    app: &SHA256Hash,
+    token: &SHA256Hash,
+) {
+    let a = deploy(env, app, token);
+    let call = |caller: ContractAddress, body: &dyn Fn(&App)| {
+        let result = env.transact(|tx| tx.call(&caller).run(AssertUnwindSafe(|| body(&a))));
+        result.assert_success();
+        env.advance_block();
+        result
+    };
+    let topic = |address: ContractAddress| Topic::from(address.into_topic());
+    call(alice(), &|a| a.app().register())
+        .assert_emitted::<Registered>(&a.address, |e| e.topic(1) == Some(&topic(alice())));
+    call(bob(), &|a| a.app().register())
+        .assert_emitted::<Registered>(&a.address, |e| e.topic(1) == Some(&topic(bob())));
+    call(alice(), &|a| a.app().request(&bob(), 5, &OP)).assert_emitted::<Created>(
+        &a.address,
+        |e| {
+            let p = e.payload();
+            e.topic(1) == Some(&topic(alice()))
+                && e.topic(2) == Some(&topic(bob()))
+                && *p.operation == OP
+                && p.amount == 5
+                && p.kind == Kind::Request
+        },
+    );
+    call(bob(), &|a| a.app().decline(&alice(), &OP)).assert_emitted::<Resolved>(&a.address, |e| {
+        let p = e.payload();
+        e.topic(1) == Some(&topic(alice())) && *p.operation == OP && p.state == State::Declined
+    });
+    call(alice(), &|a| {
+        a.credits().adjust_allowance(&a.address, 3);
+        a.app().send(&bob(), 3, &OP2)
+    })
+    .assert_emitted::<Created>(&a.address, |e| {
+        let p = e.payload();
+        e.topic(1) == Some(&topic(alice()))
+            && e.topic(2) == Some(&topic(bob()))
+            && *p.operation == OP2
+            && p.amount == 3
+            && p.kind == Kind::Transfer
+    });
+    let paid = op(9);
+    call(bob(), &|a| a.app().request(&alice(), 4, &paid));
+    call(alice(), &|a| {
+        a.credits().adjust_allowance(&a.address, 4);
+        a.app().approve(&bob(), &paid)
+    })
+    .assert_emitted::<Resolved>(&a.address, |e| {
+        let p = e.payload();
+        e.topic(1) == Some(&topic(bob())) && *p.operation == paid && p.state == State::Paid
     });
 }

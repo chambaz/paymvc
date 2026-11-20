@@ -66,6 +66,34 @@ pub struct EntryKey {
     pub operation: SHA256Hash,
 }
 
+/// An account registered and received its allocation.
+#[derive(Event, Clone, Debug, PartialEq, Eq)]
+pub struct Registered<'a> {
+    #[topic]
+    pub account: &'a ContractAddress,
+}
+
+/// A transfer or request was created. `to` is the recipient or the intended payer.
+#[derive(Event, Clone, Debug, PartialEq, Eq)]
+pub struct Created<'a> {
+    #[topic]
+    pub from: &'a ContractAddress,
+    #[topic]
+    pub to: &'a ContractAddress,
+    pub operation: &'a SHA256Hash,
+    pub amount: i128,
+    pub kind: Kind,
+}
+
+/// A request was paid or declined.
+#[derive(Event, Clone, Debug, PartialEq, Eq)]
+pub struct Resolved<'a> {
+    #[topic]
+    pub from: &'a ContractAddress,
+    pub operation: &'a SHA256Hash,
+    pub state: State,
+}
+
 #[derive(Debug)]
 #[thruput_sdk::storage]
 pub struct PayMVC {
@@ -76,7 +104,11 @@ pub struct PayMVC {
     history: Map<ContractAddress, Vector<Value<EntryKey>>>,
 }
 
-#[contract(client = PayMVCClient, throws = PaymentError)]
+#[contract(
+    client = PayMVCClient,
+    throws = PaymentError,
+    emits(Registered, Created, Resolved)
+)]
 impl PayMVC {
     /// Bind the credits token and make this contract its only minter.
     /// The deployment runs this atomically. A token that someone else has
@@ -107,6 +139,7 @@ impl PayMVC {
         self.registered.at_mut(&caller).set_exclusive(&true);
         self.directory.push_with(|item| item.set(&caller));
         self.token().mint(&caller, ALLOCATION);
+        log_event(&Registered { account: &caller });
     }
 
     /// Pay `to` from the caller's credits. The caller first allows this
@@ -247,6 +280,13 @@ impl PayMVC {
         };
         self.history.at_mut(from).push_with(|item| item.set(&key));
         self.history.at_mut(to).push_with(|item| item.set(&key));
+        log_event(&Created {
+            from,
+            to,
+            operation,
+            amount,
+            kind,
+        });
     }
 
     /// Mark a pending request `state`. Only its intended payer can do this.
@@ -265,6 +305,11 @@ impl PayMVC {
             .at_mut(from)
             .at_mut(operation)
             .set_exclusive(&entry);
+        log_event(&Resolved {
+            from,
+            operation,
+            state,
+        });
         entry
     }
 }

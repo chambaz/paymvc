@@ -36,3 +36,5 @@ scenario!(external_transfers_reach_unregistered_accounts);
 scenario!(invalid_inputs_and_bounded_pages);
 scenario!(activity_cursor_is_stable);
 scenario!(full_pages_fit_the_return_buffer);
+scenario!(credits_follow_the_token_rules);
+scenario!(events_describe_each_change);

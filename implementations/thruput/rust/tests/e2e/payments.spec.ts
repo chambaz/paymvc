@@ -1,8 +1,14 @@
 import { test, expect, type Page } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
 import { readFileSync } from "node:fs";
 import { parseDeployment, deploymentKey } from "../../src/chain/config";
-import { readDashboard } from "../../src/chain/payments";
-import { loadSession, accountFor, type Session } from "../../src/chain/session";
+import { payments, readDashboard } from "../../src/chain/payments";
+import {
+  loadSession,
+  accountFor,
+  newSession,
+  type Session,
+} from "../../src/chain/session";
 import {
   failureText,
   writeEvidence,
@@ -279,6 +285,163 @@ test("wallet creation is transaction-free and a second tab is read-only", async 
     second.getByRole("button", { name: "Start demo", exact: true }),
   ).toBeDisabled();
   expect(writes).toBe(0);
+});
+
+/** Fund `address` from the local deployer. */
+async function fundAddress(address: string) {
+  const funder = funderSession(c, network, funderPath);
+  await fund(c, funder, address, () => save(funderPath, funder));
+}
+/** Create, fund, and start a wallet in `page`. Returns its address. */
+async function startWallet(page: Page) {
+  await page.goto("/");
+  await page
+    .getByRole("button", { name: "Create demo wallet", exact: true })
+    .click();
+  const address = await page.getByTestId("funding-address").innerText();
+  await fundAddress(address);
+  await page.getByRole("button", { name: "Start demo", exact: true }).click();
+  await expect(page.getByTestId("balance")).toHaveText("100");
+  return address;
+}
+/** Register another user outside the browser. Returns its address. */
+async function registeredContact() {
+  const s = newSession(c);
+  const address = accountFor(s).address;
+  await fundAddress(address);
+  const persist = () => save(`.local/contact-${address}.json`, s);
+  persist();
+  await payments(c, s, persist, () => {}).setup();
+  return address;
+}
+
+test.describe("local failure paths", () => {
+  test.skip(live, "These tests fund wallets from the local deployer.");
+
+  test("failed writes keep input, failed reads keep the balance, and the dashboard is accessible", async ({
+    page,
+  }) => {
+    const recipient = await registeredContact();
+    await startWallet(page);
+    for (const scheme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme: scheme });
+      const results = await new AxeBuilder({ page }).analyze();
+      expect(results.violations).toEqual([]);
+    }
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("Recipient address").fill(recipient);
+    await dialog.getByLabel("Amount", { exact: true }).fill("101");
+    await dialog
+      .getByRole("button", { name: "Send credits", exact: true })
+      .click();
+    await expect(dialog.getByRole("alert")).toContainText(
+      "Not enough demo credits",
+    );
+    // Switching modes keeps both fields, and nothing was signed.
+    await dialog.getByRole("radio", { name: "Request", exact: true }).click();
+    await dialog.getByRole("radio", { name: "Send", exact: true }).click();
+    await expect(dialog.getByLabel("Recipient address")).toHaveValue(recipient);
+    await expect(dialog.getByLabel("Amount", { exact: true })).toHaveValue(
+      "101",
+    );
+    await dialog.getByLabel("Amount", { exact: true }).fill("7");
+    await dialog
+      .getByRole("button", { name: "Send credits", exact: true })
+      .click();
+    await expect(dialog).not.toBeVisible();
+    await expect(page.getByTestId("balance")).toHaveText("93");
+    await page.route(c.rpcUrl, (route) => route.abort("failed"));
+    await page.getByRole("button", { name: "Refresh", exact: true }).click();
+    await expect(page.getByText("Balance may be out of date")).toBeVisible();
+    await expect(page.getByTestId("balance")).toHaveText("93");
+    await page.unrouteAll({ behavior: "wait" });
+  });
+
+  test("directory pages omit self and contacts fill the recipient", async ({
+    page,
+  }) => {
+    for (let i = 0; i < 7; i++) await registeredContact();
+    const owner = await startWallet(page);
+    const directory = page.getByRole("region", { name: "Your contacts" });
+    const contacts = directory.getByRole("button", { name: /^Send to / });
+    await expect(contacts).toHaveCount(5);
+    await directory.getByRole("button", { name: "Load more contacts" }).click();
+    await expect.poll(() => contacts.count()).toBeGreaterThan(5);
+    const values = await contacts.evaluateAll((buttons) =>
+      buttons.map((button) => button.getAttribute("title")),
+    );
+    expect(values).not.toContain(owner);
+    expect(new Set(values).size).toBe(values.length);
+    await contacts.last().click();
+    await expect(page.getByLabel("Recipient address")).toHaveValue(
+      values.at(-1)!,
+    );
+  });
+
+  test("a rejected submission keeps the signed bytes and recheck sends them again", async ({
+    page,
+  }) => {
+    const recipient = await registeredContact();
+    await startWallet(page);
+    const sent: unknown[] = [];
+    let reject = true;
+    await page.route(c.rpcUrl, async (route) => {
+      const body = route.request().postData();
+      if (!body?.includes('"sendTransaction"')) return route.continue();
+      const calls = messages(JSON.parse(body)) as {
+        id?: unknown;
+        method?: string;
+        params?: { signedTransaction?: unknown };
+      }[];
+      for (const call of calls)
+        if (call.method === "sendTransaction")
+          sent.push(call.params?.signedTransaction);
+      if (!reject) return route.continue();
+      const errors = calls.map((call) => ({
+        jsonrpc: "2.0",
+        id: call.id,
+        error: { code: -32000, message: "Unavailable" },
+      }));
+      await route.fulfill({
+        json: Array.isArray(JSON.parse(body)) ? errors : errors[0],
+      });
+    });
+    await page.getByRole("button", { name: "Send", exact: true }).click();
+    const dialog = page.getByRole("dialog");
+    await dialog.getByLabel("Recipient address").fill(recipient);
+    await dialog.getByLabel("Amount", { exact: true }).fill("7");
+    await dialog
+      .getByRole("button", { name: "Send credits", exact: true })
+      .click();
+    await expect(dialog.getByRole("alert")).toBeVisible();
+    await page.keyboard.press("Escape");
+    reject = false;
+    await page
+      .getByRole("button", { name: "Recheck original operation", exact: true })
+      .click();
+    await expect(page.getByTestId("balance")).toHaveText("93");
+    await expect(page.getByTestId("activity-row")).toHaveCount(1);
+    expect(sent.length).toBeGreaterThanOrEqual(2);
+    expect(new Set(sent.map((bytes) => JSON.stringify(bytes))).size).toBe(1);
+    await page.unrouteAll({ behavior: "wait" });
+  });
+
+  test("storage failure stops before a wallet is funded", async ({ page }) => {
+    await page.addInitScript(() => {
+      Storage.prototype.setItem = () => {
+        throw new Error("Storage blocked");
+      };
+    });
+    await page.goto("/");
+    await page
+      .getByRole("button", { name: "Create demo wallet", exact: true })
+      .click();
+    await expect(
+      page.getByText("Browser storage is unavailable", { exact: false }),
+    ).toBeVisible();
+    await expect(page.getByTestId("funding-address")).toHaveCount(0);
+  });
 });
 
 test("unreadable browser storage stops before a wallet is created", async ({

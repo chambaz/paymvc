@@ -9,9 +9,11 @@
  * The CLI runs with a private configuration directory in `.local/`, so the
  * deployment key never mixes with global keys. On Futurenet, each CLI result
  * is saved in `.local/futurenet-cli/deployment.json` before the next step,
- * so a rerun resumes after the last completed step. A local chain is
+ * so a rerun resumes after the last completed step. The journal starts over
+ * when the network or the built contracts change. A local chain is
  * disposable, so a local deployment always starts over.
  */
+import { createHash } from "node:crypto";
 import { readFileSync, renameSync, writeFileSync } from "node:fs";
 import { parseDeployment } from "../src/chain/config";
 import { verifyDeployment } from "../src/chain/payments";
@@ -32,7 +34,21 @@ type Deployed = {
   address: string;
   nativeDeployment: { networkHash: string; contractHash: string };
 };
-type Journal = { deployer?: string; credits?: Deployed; paymvc?: Deployed };
+type Journal = {
+  deployer?: string;
+  /** The network and the built artifacts that this journal deploys. */
+  networkHash?: string;
+  artifacts?: string;
+  credits?: Deployed;
+  paymvc?: Deployed;
+};
+const artifacts = ["credits", "paymvc"]
+  .map((name) =>
+    createHash("sha256")
+      .update(readFileSync(`target/thruput/${name}.rv32a`))
+      .digest("hex"),
+  )
+  .join(":");
 
 const thruput = (args: string[]) => run(args, env);
 const target = ["--profile", network, "--rpc-url", rpcUrl];
@@ -71,6 +87,13 @@ console.log("Deployment wallet:", deployer);
     }),
   });
   const { networkHash } = (await response.json()).result;
+  // A reset network or new contract code needs a new deployment.
+  if (journal.networkHash !== networkHash || journal.artifacts !== artifacts) {
+    if (journal.paymvc)
+      console.log("The network or the contracts changed. Deploying again.");
+    journal = { deployer: journal.deployer, networkHash, artifacts };
+    save();
+  }
   try {
     thruput(["config", "rm", network, "--global", "--yes"]);
   } catch (error) {
@@ -115,19 +138,33 @@ journal.credits ??= thruput([
   ...target,
 ]);
 save();
-journal.paymvc ??= thruput([
-  "deploy",
-  "--artifact",
-  "target/thruput/paymvc.rv32a",
-  "--fund",
-  CONTRACT_FUNDING,
-  "--init",
-  "initialize",
-  "--init-arg",
-  journal.credits!.address,
-  "--yes",
-  ...target,
-]);
+try {
+  journal.paymvc ??= thruput([
+    "deploy",
+    "--artifact",
+    "target/thruput/paymvc.rv32a",
+    "--fund",
+    CONTRACT_FUNDING,
+    "--init",
+    "initialize",
+    "--init-arg",
+    journal.credits!.address,
+    "--yes",
+    ...target,
+  ]);
+} catch (error) {
+  // The token was initialized before this PayMVC could bind it: by someone else, or by
+  // an earlier PayMVC deploy that landed although the CLI reported an error. Drop it, so
+  // that a rerun deploys a fresh token and PayMVC.
+  if (/AlreadyInitialized/.test(String((error as Error).message))) {
+    delete journal.credits;
+    save();
+    throw new Error(
+      "The credits token is already initialized, by another account or by an earlier PayMVC deploy whose result was not saved. Rerun to deploy a new token and PayMVC.",
+    );
+  }
+  throw error;
+}
 save();
 
 const { credits, paymvc } = journal as Required<Journal>;

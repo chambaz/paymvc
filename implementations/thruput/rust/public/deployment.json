@@ -1,10 +1,10 @@
 {
   "network": "futurenet",
   "networkHash": "DFizVugYrvktaiKivvCx2P1ApArLuyYmH6vN3HN7FcNT",
-  "address": "7d2whCRc7RG5HxifGT3eF8oNVBuwkrZAnC95ctM1wppp",
-  "contractHash": "6EGVrTo7FTgajFErZZZjPxtYMw9RGC8RuqjtmUekm1Ge",
-  "credits": "EhdmEF8GzYX1E8TBWeSpTW4LnrRhuPxiMSe3MCV1DUi4",
-  "creditsHash": "9yef6sfAwcN4xiLuHLPgfbzCGiYRP1LrirM2ojYbzVmH",
+  "address": "pZqkNUJV1ZFhTEguLr8bSmLRHtzYVTUXxJ7A6uASvFU",
+  "contractHash": "VTwJoUbpiDstSMNWTWd3dfP6XgVnw68rW6wgQ7Q99DK",
+  "credits": "GkQS531LPXkRdFWNtB77ALaC7gmRDhctvJbfn8rhto5N",
+  "creditsHash": "3YhRo4N37ujwerapwe64SLEcjfs3FGczM6c48pR8vJew",
   "rpcUrl": "https://rpc.thruput.network",
   "faucetUrl": "https://thruput-faucet.up.railway.app",
   "explorerUrl": "https://explorer.thruput.network"
