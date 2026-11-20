@@ -11,6 +11,11 @@ remappings = ["@openzeppelin/=node_modules/@openzeppelin/"]
 [profile.default.fuzz]
 runs = 256
 
+[profile.default.invariant]
+runs = 64
+depth = 64
+fail_on_revert = true
+
 [fmt]
 line_length = 100
 

@@ -1,9 +1,17 @@
 import { beforeEach, expect, it, vi } from "vitest";
-import { HttpRequestError } from "viem";
+import {
+  HttpRequestError,
+  keccak256,
+  parseTransaction,
+  TransactionReceiptNotFoundError,
+  type Hex,
+} from "viem";
+import { privateKeyToAccount } from "viem/accounts";
 import { newSession, type Session } from "../../src/chain/session";
 import { parseDeployment } from "../../src/chain/config";
 import {
   RevertedTransaction,
+  ReplacedTransaction,
   transact,
   UnknownOutcome,
   BroadcastUnavailable,
@@ -14,6 +22,9 @@ const mocks = vi.hoisted(() => ({
   broadcast: vi.fn(),
   wait: vi.fn(),
   pending: vi.fn(),
+  count: vi.fn(),
+  block: vi.fn(),
+  fees: vi.fn(),
 }));
 vi.mock("../../src/chain/config", async (importOriginal) => ({
   ...(await importOriginal<typeof import("../../src/chain/config")>()),
@@ -22,6 +33,9 @@ vi.mock("../../src/chain/config", async (importOriginal) => ({
     sendRawTransaction: mocks.broadcast,
     waitForTransactionReceipt: mocks.wait,
     getTransaction: mocks.pending,
+    getTransactionCount: mocks.count,
+    getBlock: mocks.block,
+    estimateFeesPerGas: mocks.fees,
   }),
 }));
 const config = parseDeployment({
@@ -33,16 +47,35 @@ const config = parseDeployment({
   codeHash: `0x${"4".repeat(64)}`,
   faucetUrl: "https://example.com",
 });
+const NONCE = 5;
+/** What viem throws when a node has no receipt for a hash. */
+const noReceipt = () =>
+  new TransactionReceiptNotFoundError({ hash: `0x${"0".repeat(64)}` });
 let session: Session;
-beforeEach(() => {
+let raw: Hex;
+let hash: Hex;
+const success = (transactionHash: Hex = hash) => ({
+  status: "success",
+  transactionHash,
+});
+beforeEach(async () => {
   vi.resetAllMocks();
   mocks.pending.mockRejectedValue(new Error("Not found"));
+  mocks.receipt.mockRejectedValue(noReceipt());
+  mocks.count.mockResolvedValue(NONCE);
+  mocks.block.mockResolvedValue({ baseFeePerGas: 1n });
   session = newSession(config);
-  session.journal.send = {
-    raw: "0x1234",
-    hash: `0x${"3".repeat(64)}`,
-    confirmed: false,
-  };
+  raw = await privateKeyToAccount(session.key).signTransaction({
+    chainId: config.chainId,
+    type: "eip1559",
+    to: config.address,
+    nonce: NONCE,
+    gas: 100_000n,
+    maxFeePerGas: 10n,
+    maxPriorityFeePerGas: 1n,
+  });
+  hash = keccak256(raw);
+  session.journal.send = { raw, hash, confirmed: false };
 });
 const run = (persist = () => {}) =>
   transact(config, session, persist, () => {}, "send", config.address);
@@ -59,65 +92,66 @@ it("stops before all RPC calls when saving evidence fails", async () => {
 it("retries the original signed bytes and reconciles a mined result", async () => {
   const persist = vi.fn();
   mocks.receipt
-    .mockRejectedValueOnce(new Error("Not found"))
-    .mockResolvedValueOnce({ status: "success" });
+    .mockRejectedValueOnce(noReceipt())
+    .mockResolvedValueOnce(success());
   mocks.broadcast.mockImplementation(async ({ serializedTransaction }) => {
     expect(persist).toHaveBeenCalled();
-    expect(serializedTransaction).toBe("0x1234");
+    expect(serializedTransaction).toBe(raw);
   });
   await run(persist);
   expect(session.journal.send!.confirmed).toBe(true);
   expect(mocks.broadcast).toHaveBeenCalledTimes(1);
 });
 it("retains unknown evidence and reconciles without a second broadcast", async () => {
-  mocks.receipt.mockRejectedValue(new Error("Unavailable"));
   mocks.wait.mockRejectedValue(new Error("Timeout"));
+  mocks.broadcast.mockResolvedValue(hash);
   await expect(run()).rejects.toBeInstanceOf(UnknownOutcome);
-  expect(session.journal.send!.raw).toBe("0x1234");
-  mocks.receipt.mockResolvedValue({ status: "success" });
+  expect(session.journal.send!.raw).toBe(raw);
+  mocks.receipt.mockResolvedValue(success());
   await run();
   expect(mocks.broadcast).toHaveBeenCalledTimes(1);
   expect(session.journal.send!.confirmed).toBe(true);
 });
 it("permits a new attempt only after a confirmed revert", async () => {
-  mocks.receipt.mockResolvedValue({ status: "reverted" });
+  mocks.receipt.mockResolvedValue({
+    status: "reverted",
+    transactionHash: hash,
+  });
   await expect(run()).rejects.toBeInstanceOf(RevertedTransaction);
   expect(session.journal.send).toBeUndefined();
   expect(mocks.broadcast).not.toHaveBeenCalled();
 });
 
 it("reports a failed broadcast promptly and retries the exact saved bytes", async () => {
-  mocks.receipt.mockRejectedValue(new Error("Not found"));
   mocks.broadcast.mockRejectedValueOnce(new Error("RPC unavailable"));
   await expect(run()).rejects.toBeInstanceOf(BroadcastUnavailable);
   expect(mocks.wait).not.toHaveBeenCalled();
-  expect(session.journal.send!.raw).toBe("0x1234");
-  mocks.wait.mockResolvedValue({ status: "success" });
+  expect(session.journal.send!.raw).toBe(raw);
+  mocks.wait.mockResolvedValue(success());
   await run();
   expect(
     mocks.broadcast.mock.calls.map(
       ([request]) => request.serializedTransaction,
     ),
-  ).toEqual(["0x1234", "0x1234"]);
+  ).toEqual([raw, raw]);
   expect(session.journal.send!.confirmed).toBe(true);
 });
 
 it("accepts a confirmed receipt even if broadcast returned an error", async () => {
   mocks.receipt
-    .mockRejectedValueOnce(new Error("Not found"))
-    .mockResolvedValueOnce({ status: "success" });
+    .mockRejectedValueOnce(noReceipt())
+    .mockResolvedValueOnce(success());
   mocks.broadcast.mockRejectedValue(new Error("Already known"));
   await run();
   expect(session.journal.send!.confirmed).toBe(true);
 });
 
 it("reports rate limits without exposing the RPC URL or signed bytes", async () => {
-  mocks.receipt.mockRejectedValue(new Error("Not found"));
   mocks.broadcast.mockRejectedValue(
     new HttpRequestError({
       url: "https://example.com/private-key",
       status: 429,
-      body: { params: ["0x1234"] },
+      body: { params: [raw] },
     }),
   );
   await expect(run()).rejects.toThrow(
@@ -128,11 +162,82 @@ it("reports rate limits without exposing the RPC URL or signed bytes", async () 
 });
 
 it("waits for a transaction that is still pending after a timeout", async () => {
-  mocks.receipt.mockRejectedValue(new Error("Not found"));
   mocks.broadcast.mockRejectedValue(new Error("already known"));
-  mocks.pending.mockResolvedValue({ hash: session.journal.send!.hash });
-  mocks.wait.mockResolvedValue({ status: "success" });
+  mocks.pending.mockResolvedValue({ hash });
+  mocks.wait.mockResolvedValue(success());
   await run();
   expect(mocks.wait).toHaveBeenCalledTimes(1);
   expect(session.journal.send!.confirmed).toBe(true);
+});
+
+it("allows a new attempt once another transaction has used the nonce", async () => {
+  mocks.broadcast.mockRejectedValue(new Error("nonce too low"));
+  mocks.count.mockResolvedValue(NONCE + 1);
+  await expect(run()).rejects.toBeInstanceOf(ReplacedTransaction);
+  expect(session.journal.send).toBeUndefined();
+  // The nonce was read twice, so one lagging node cannot prove replacement alone.
+  expect(mocks.count).toHaveBeenCalledTimes(2);
+});
+
+it("keeps the saved bytes while the nonce is unused", async () => {
+  mocks.broadcast.mockRejectedValue(new Error("RPC unavailable"));
+  await expect(run()).rejects.toBeInstanceOf(BroadcastUnavailable);
+  expect(session.journal.send!.raw).toBe(raw);
+});
+
+it("keeps the saved bytes when a second check finds them mined", async () => {
+  mocks.count.mockResolvedValue(NONCE + 1);
+  mocks.receipt
+    .mockRejectedValueOnce(noReceipt())
+    .mockRejectedValueOnce(noReceipt())
+    .mockResolvedValue(success());
+  await run();
+  expect(session.journal.send!.confirmed).toBe(true);
+  expect(mocks.broadcast).not.toHaveBeenCalled();
+});
+
+it("keeps a used-nonce transaction when receipt reads fail", async () => {
+  // The transaction was mined, so the nonce passed it, but the RPC rate-limits receipts.
+  mocks.count.mockResolvedValue(NONCE + 1);
+  mocks.receipt.mockRejectedValue(
+    new HttpRequestError({ url: config.rpcUrl, status: 429 }),
+  );
+  await expect(run()).rejects.toBeInstanceOf(UnknownOutcome);
+  expect(session.journal.send!.raw).toBe(raw);
+  // Once the receipt is readable, the same record confirms it.
+  mocks.receipt.mockResolvedValue(success());
+  await run();
+  expect(session.journal.send!.confirmed).toBe(true);
+  expect(mocks.broadcast).not.toHaveBeenCalled();
+});
+
+it("does not accept a receipt for another transaction", async () => {
+  mocks.broadcast.mockResolvedValue(hash);
+  mocks.wait.mockResolvedValue(success(`0x${"9".repeat(64)}`));
+  await expect(run()).rejects.toBeInstanceOf(UnknownOutcome);
+  expect(session.journal.send!.confirmed).toBe(false);
+  mocks.count.mockResolvedValue(NONCE + 1);
+  await expect(run()).rejects.toBeInstanceOf(ReplacedTransaction);
+});
+
+it("signs a higher-fee version with the same nonce when the fee cap is too low", async () => {
+  mocks.block.mockResolvedValue({ baseFeePerGas: 50n });
+  mocks.fees.mockResolvedValue({
+    maxFeePerGas: 120n,
+    maxPriorityFeePerGas: 2n,
+  });
+  const persisted: string[] = [];
+  mocks.broadcast.mockImplementation(async () => {
+    expect(persisted.at(-1)).toBe(session.journal.send!.raw);
+  });
+  mocks.wait.mockImplementation(async () => success(hash));
+  await run(() => persisted.push(session.journal.send!.raw));
+  const record = session.journal.send!;
+  const next = parseTransaction(record.raw);
+  expect(next.nonce).toBe(NONCE);
+  expect(next.maxFeePerGas).toBe(120n);
+  expect(next.maxPriorityFeePerGas).toBe(2n);
+  expect(record.earlier).toEqual([hash]);
+  // The first version was mined, and it counts as this operation's result.
+  expect(record.confirmed).toBe(true);
 });

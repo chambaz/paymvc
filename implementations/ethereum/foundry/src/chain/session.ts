@@ -22,7 +22,13 @@ const sessionSchema = z.object({
   ready: z.boolean(),
   journal: z.record(
     z.string(),
-    z.object({ raw: hex, hash: key, confirmed: z.boolean() }),
+    z.object({
+      raw: hex,
+      hash: key,
+      confirmed: z.boolean(),
+      // Hashes of earlier versions with the same nonce and lower fees. Any one can be mined.
+      earlier: z.array(key).optional(),
+    }),
   ),
   intent: intentSchema.nullable(),
 });
@@ -78,8 +84,11 @@ export function loadSession(
     );
   }
 }
+/** A random 32-byte operation ID. Live tests pass a label to make it repeatable. */
 export function operationId(label?: string): Hex {
-  return keccak256(toHex(label ?? crypto.randomUUID()));
+  return label
+    ? keccak256(toHex(label))
+    : toHex(crypto.getRandomValues(new Uint8Array(32)));
 }
 export function validateOperation(value: string) {
   if (!/^0x[0-9a-fA-F]{64}$/.test(value) || /^0x0+$/.test(value))

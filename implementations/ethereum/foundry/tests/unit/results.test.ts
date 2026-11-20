@@ -92,6 +92,7 @@ beforeEach(() => {
   };
   mocks.read.mockImplementation(async ({ functionName }) => {
     if (functionName === "token") return config.token;
+    if (functionName === "decimals") return 0;
     if (functionName === "entry") {
       if (!entry) throw notFound;
       return entry;

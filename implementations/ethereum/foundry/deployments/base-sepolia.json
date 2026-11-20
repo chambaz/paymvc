@@ -1,9 +1,9 @@
 {
   "chainId": 84532,
   "rpcUrl": "https://sepolia.base.org",
-  "address": "0xbda6d31a433c9bd3c8dc5520543e79ea1ff8a3a4",
-  "token": "0x12fBC6F809731725d4b0f0f1846e94753e2cB1F5",
-  "deploymentBlock": "58386320",
-  "codeHash": "0xc77b08c0c9663a8ec0c17a4ef141ad41158f15be1bc82a46ce9b148b630baa2b",
+  "address": "0xec629747aac1cd22cf304584d475b12b3964b611",
+  "token": "0xB1F2f71fC4582A0eB3639d6F4eaCC1d56A744178",
+  "deploymentBlock": "61088776",
+  "codeHash": "0xbccb766b1e62f16f8c530e3b5ad7eb04650d23a0180df5a974ab71a60775d94f",
   "faucetUrl": "https://portal.cdp.coinbase.com/onchain-tools/faucet"
 }

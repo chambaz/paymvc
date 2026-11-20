@@ -1,9 +1,9 @@
 {
   "chainId": 10143,
   "rpcUrl": "https://testnet-rpc.monad.xyz",
-  "address": "0x6744b875981b884efdc5aa6e1c73691e2d0f8200",
-  "token": "0xe69c69A9cf6822b58CBd045Bdb2679768234C383",
-  "deploymentBlock": "79468228",
-  "codeHash": "0x7123622aab327e3e3bf40600e61d59d8202711ec23882c1271c7a20c7838f504",
+  "address": "0xefbca99b5e62009cea94384f3d5fe043c1104876",
+  "token": "0x190ddD5f2F939d02CbFA3406c9FdC3b61a1D41d7",
+  "deploymentBlock": "81184176",
+  "codeHash": "0xa5f6756120ee2ba1da69d21692cf8a5dc1611c4c0a2bdbceab365b454ba9163d",
   "faucetUrl": "https://faucet.monad.xyz"
 }

@@ -13,6 +13,7 @@ interface Vm {
     function stopPrank() external;
     function expectRevert(bytes4) external;
     function expectRevert(bytes calldata) external;
+    function expectEmit(address emitter) external;
 }
 
 contract PayMVCTest {
@@ -83,6 +84,33 @@ contract PayMVCTest {
         require(token.balanceOf(bob) == 100 + amount);
         require(token.totalSupply() == 200);
         require(token.allowance(alice, address(app)) == 0);
+    }
+
+    function testAmountLimitsAreInclusive() public {
+        vm.startPrank(alice);
+        app.request(bob, 1, OP1);
+        app.request(bob, 1_000_000, OP2);
+        vm.expectRevert(PayMVC.InvalidAmount.selector);
+        app.request(bob, 1_000_001, OP3);
+        vm.stopPrank();
+        require(app.entry(alice, OP1).amount == 1 && app.entry(alice, OP2).amount == 1_000_000);
+    }
+
+    function testEventsDescribeEachChange() public {
+        vm.expectEmit(address(app));
+        emit PayMVC.Registered(outsider);
+        vm.prank(outsider);
+        app.register();
+        vm.expectEmit(address(app));
+        emit PayMVC.Created(alice, OP1, bob, 20, PayMVC.Kind.Request);
+        vm.prank(alice);
+        app.request(bob, 20, OP1);
+        vm.expectEmit(address(app));
+        emit PayMVC.Resolved(alice, OP1, PayMVC.State.Paid);
+        approve(BOB, alice, OP1, 20);
+        vm.expectEmit(address(app));
+        emit PayMVC.Created(bob, OP1, alice, 5, PayMVC.Kind.Transfer);
+        send(BOB, alice, 5, OP1);
     }
 
     function testSendCreatesPaidTransferInOneCall() public {

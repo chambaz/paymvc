@@ -91,7 +91,7 @@ Only the PayMVC contract can mint `DemoCredits`. It allocates 100 credits once, 
 
 ## 4. Funding
 
-Wallet creation saves one key before transactions start. The suggested reserve is the greater of the network's funding minimum and the current maximum fee per gas multiplied by the network's funding gas. The funding gas covers registration and the four payments of the shared scenario, with a margin: 5,000,000 gas on Sepolia, which prices new storage far higher (a request uses about 1.25M gas), and 1,500,000 gas on the other networks and on Anvil. Monad charges the gas limit, not the gas used. The funding minimum is 0.00005 ETH on Base Sepolia and 0.0005 of the native token on the other networks and on Anvil. Each network defines these values in `src/networks/index.ts`. Registration and later payments consume this reserve. Faucets may require sign-in or impose eligibility rules.
+Wallet creation saves one key before transactions start. The suggested reserve is the greater of the network's funding minimum and the current maximum fee per gas multiplied by the network's funding gas. The funding gas covers registration and the four payments of the shared scenario, with a margin: 5,000,000 gas on Sepolia, which prices new storage far higher (a send uses about 0.95M gas and a request about 0.6M), and 1,500,000 gas on the other networks and on Anvil. Monad charges the gas limit, not the gas used. The funding minimum is 0.00005 ETH on Base Sepolia and 0.0005 of the native token on the other networks and on Anvil. Each network defines these values in `src/networks/index.ts`. Registration and later payments consume this reserve. Faucets may require sign-in or impose eligibility rules.
 
 Keys and signed transaction evidence stay in browser local storage. Browser storage and Web Locks are scoped by chain, contract, and code hash. Switching back restores that network's wallet and journal on the same origin. A new hostname or port has separate browser storage. Sessions from earlier contract versions are not migrated.
 
@@ -99,11 +99,13 @@ Keys and signed transaction evidence stay in browser local storage. Browser stor
 
 Web Locks permits one writer tab. Refresh restores the same wallet and journal. Reset removes local access; it cannot cancel transactions or remove chain state.
 
-Every transaction is saved before broadcast. Unknown outcomes keep the original signed bytes and hash. Retry reconciles the original receipt or rebroadcasts those bytes; a saved transaction is never signed again, and no new permit is signed for it. The permit inside a saved transaction stays valid until it is used, because its nonce changes only when a permit is used and its deadline is the maximum. A rebroadcast therefore still pays. One successful mined receipt is confirmation, not finality; a later reorganization can change that result. Transactions have no application expiry. Definitive reverts permit explicit retry; a reverted payment also reverts its permit, so the retry signs a new permit with the same nonce. Uncertain outcomes do not permit a new payment.
+Every transaction is saved before broadcast. Unknown outcomes keep the original signed bytes and hash. Retry reconciles the original receipt or rebroadcasts those bytes, and no new permit is signed for a saved transaction. A saved transaction is signed again in one case only: when its fee cap is below the current base fee, it gets a new version with the same nonce and fees at least 10% higher. The same nonce means that at most one version can be mined, and a receipt for any version confirms the operation. The permit inside a saved transaction stays valid until it is used, because its nonce changes only when a permit is used and its deadline is the maximum. A rebroadcast therefore still pays. One successful mined receipt is confirmation, not finality; a later reorganization can change that result. Transactions have no application expiry. Instead, the nonce proves that a transaction can never be mined: if the account's nonce has passed the transaction's nonce and no version has a receipt, checked twice, another transaction used its place. This happens, for example, when a lagging RPC node returned a nonce that was already used. Definitive reverts and replaced transactions permit explicit retry; a reverted payment also reverts its permit, so the retry signs a new permit with the same nonce. Uncertain outcomes do not permit a new payment. A receipt counts only if its hash is one of the saved versions.
 
 Reconciliation reads `entry(from, operation)`. Confirmation needs the receipt and the expected entry: participants, amount, kind, and state.
 
-Setup makes one automatic recheck after five seconds for a receipt timeout or delayed registration result. Interactive operations make one automatic recheck for delayed application results. Further recovery requires user action. The app verifies chain ID, bytecode hash, token address, registration membership, and expected payment results. Failed reads keep previous data with a stale indicator.
+Setup makes one automatic recheck after five seconds for a receipt timeout or delayed registration result. Interactive operations make one automatic recheck for delayed application results. Further recovery requires user action. Once per page load, before the first write, the app verifies the chain ID, the bytecode hash, the token address, and the token's zero decimals. It also verifies registration membership and expected payment results. Failed reads keep previous data with a stale indicator.
+
+A contract error found before signing, such as a request to an unregistered address, is decoded from the revert data and shown by name, for example "Choose a different, registered PayMVC account." Nothing is signed or saved in that case.
 
 Robinhood is an Arbitrum Nitro L2. Standard gas estimation includes its execution and L1 data costs. PayMVC uses the same successful-receipt threshold as other EVM networks; this is a sequencer confirmation, not Ethereum finality. Recovery rechecks original receipts. The contracts do not depend on `block.number`, randomness opcodes, or L1 address aliasing. See Robinhood's [EVM differences](https://docs.robinhood.com/chain/differences-from-ethereum/), [fees](https://docs.robinhood.com/chain/gas-and-fees/), and [finality](https://docs.robinhood.com/chain/transaction-finality/).
 
@@ -113,14 +115,15 @@ Foundry deploys the contracts. The same script deploys to every network and to A
 
 ```sh
 forge script script/Deploy.s.sol --rpc-url ethereum --broadcast \
-  --skip-simulation --gas-estimate-multiplier 110 --private-key "$(cat .local/sepolia-deployer)"
+  --skip-simulation --gas-estimate-multiplier 110 \
+  --keystore KEYSTORE.json --password-file PASSWORD
 ```
 
 The endpoint names are in `foundry.toml`: `ethereum`, `base`, `monad`, `robinhood`, and `anvil`. `npm run deploy -- --network NAME` runs that command with the network's key and then writes the public record. It reads `broadcast/Deploy.s.sol/CHAIN_ID/run-latest.json`, checks the deployment on chain, and writes `deployments/NETWORK.json`: chain ID, RPC URL, PayMVC and token addresses, deployment block, code hash, and faucet. `npm run local` uses the same script on Anvil and writes `public/local.json`.
 
-The keys are `.local/sepolia-deployer` for Ethereum and `.local/NETWORK/CHAIN_ID-deployer` for other networks, with mode 0600. The script creates a key if none exists. Fund the printed address on the selected testnet, then rerun. The key goes to forge only and is never printed.
+The keys are `.local/sepolia-deployer` for Ethereum and `.local/NETWORK/CHAIN_ID-deployer` for other networks, with mode 0600. The script creates a key if none exists. Fund the printed address on the selected testnet, then rerun. The key is never printed or put on a command line, where other local users could read it: the script gives forge an encrypted keystore and a password file in `.local/`, with mode 0600, and removes both when forge exits, even after an interrupt.
 
-Foundry saves each transaction in the broadcast journal before it sends it. If a deployment stops, run `npm run deploy -- --network NAME --resume`; forge sends only the transactions that did not land, then the record is written. Keep the `broadcast/` folder until the record is written.
+Forge writes the planned transactions to `broadcast/` before it sends them, and records each hash as it sends. If a deployment stops, run `npm run deploy -- --network NAME --resume`; forge sends the saved transactions that did not land with their original nonces, then the record is written. Keep the `broadcast/` folder until the record is written.
 
 Forge estimates gas with the network's RPC (`--skip-simulation`) and adds 10%. Its local EVM can price state creation differently from a network: since its October 2026 upgrade, Sepolia charges about seven times the local gas for this deployment (13.8M gas). A larger margin would pass Sepolia's 16.78M per-transaction gas cap. `RPC_URL` overrides the endpoint for forge and for the record; do not put provider secrets in public deployment records.
 
@@ -140,7 +143,7 @@ npm run test:networks
 npm run test:visual
 ```
 
-Contract tests cover allocation, authorization, every canonical error, lifecycle transitions, permits (including a permit that someone else used first), decline without credits, entry lookup, the activity cursor when a record lands between pages, rollback, replay, directory bounds, and fuzzed conservation. Unit tests in `tests/unit/` cover exact amounts, session isolation, funding, network selection, directory cursors, and recovery. Browser tests use real Anvil transactions with independent users, desktop/mobile layouts, accessibility, persistence, reset, and failure paths. Browser suites run sequentially. Traces are disabled to keep signing keys out of artifacts.
+Contract tests cover allocation, authorization, every canonical error, the inclusive amount limits, events, lifecycle transitions, permits (including a permit that someone else used first), decline without credits, entry lookup, the activity cursor when a record lands between pages, rollback, replay, directory bounds, and fuzzed conservation. Invariant tests in `test/Invariants.t.sol` run random sequences of sends, requests, approvals, declines, attempts to resolve final entries, and direct token transfers. After each sequence, they check that credits exist only from registration, that payments conserve credits, that the directory holds each user once, that Paid and Declined never change, and that each entry is in two histories. Unit tests in `tests/unit/` cover exact amounts, session isolation, funding, network selection, directory cursors, and recovery. Browser tests use real Anvil transactions with independent users, desktop/mobile layouts, accessibility, persistence, reset, and failure paths. Browser suites run sequentially. Traces are disabled to keep signing keys out of artifacts.
 
 Visual baselines live only in this implementation, because the view is byte-identical in every implementation (`conformance/verify.mjs` enforces this). `tests/visual/` screenshots the UI fixture in light and dark mode and needs no local chain. `npm run test:visual` compares and `npm run test:visual:update` regenerates the baselines. Both run in the Playwright Docker image, so Docker is required.
 
@@ -150,7 +153,7 @@ Visual baselines live only in this implementation, because the view is byte-iden
 
 `npm run test:networks` checks the production build's network selection and wallet isolation.
 
-The live commands run the shared scenario on the selected public testnet. Each command creates two independent users, A and B, and funds each one from the network's deployer key with the app's funding budget. The deployer journal saves each funding transfer before broadcast, and the next run reconciles it.
+The live commands run the shared scenario on the selected public testnet. Each command creates two independent users, A and B, and funds each one from the network's deployer key with 1.5 times the app's funding budget. The deployer journal saves each funding transfer before broadcast, and the next run reconciles it.
 
 ```sh
 npm run test:live -- --network base

@@ -37,15 +37,30 @@ contract PayMVC {
         bytes32 operation;
     }
 
+    /// @dev An entry in one storage slot. Its creator and operation ID are the mapping keys,
+    /// and a zero `to` means that no entry exists.
+    struct Record {
+        address to;
+        uint64 amount;
+        Kind kind;
+        State state;
+    }
+
     DemoCredits public immutable token;
     mapping(address account => bool) public registered;
     address[] private directory;
-    mapping(address from => mapping(bytes32 operation => Entry)) private entries;
+    mapping(address from => mapping(bytes32 operation => Record)) private records;
     // Per-account indexes make history readable without an off-chain indexer.
     mapping(address account => Key[]) private history;
 
     event Registered(address indexed account);
-    event Created(address indexed from, bytes32 indexed operation, address indexed to);
+    event Created(
+        address indexed from,
+        bytes32 indexed operation,
+        address indexed to,
+        uint256 amount,
+        Kind kind
+    );
     event Resolved(address indexed from, bytes32 indexed operation, State state);
 
     error AlreadyRegistered();
@@ -99,7 +114,7 @@ contract PayMVC {
         bytes32 r,
         bytes32 s
     ) external {
-        Entry storage found = pending(from, operation);
+        Record storage found = pending(from, operation);
         found.state = State.Paid;
         pay(from, found.amount, deadline, v, r, s);
         emit Resolved(from, operation, State.Paid);
@@ -127,9 +142,8 @@ contract PayMVC {
 
     /// @notice Reverts with NotFound if no entry has this creator and operation ID.
     function entry(address from, bytes32 operation) external view returns (Entry memory) {
-        Entry memory found = entries[from][operation];
-        if (found.from == address(0)) revert NotFound();
-        return found;
+        if (records[from][operation].to == address(0)) revert NotFound();
+        return load(from, operation);
     }
 
     function activityCount(address account) external view returns (uint256) {
@@ -149,7 +163,7 @@ contract PayMVC {
         page = new Entry[](min(end, limit));
         for (uint256 i; i < page.length; i++) {
             Key storage key = keys[end - 1 - i];
-            page[i] = entries[key.from][key.operation];
+            page[i] = load(key.from, key.operation);
         }
     }
 
@@ -160,17 +174,24 @@ contract PayMVC {
         if (other == msg.sender) revert InvalidParticipants();
         if (amount == 0 || amount > MAX_AMOUNT) revert InvalidAmount();
         if (operation == bytes32(0)) revert InvalidOperation();
-        if (entries[msg.sender][operation].from != address(0)) revert OperationUsed();
-        entries[msg.sender][operation] = Entry(msg.sender, other, operation, amount, kind, state);
+        if (records[msg.sender][operation].to != address(0)) revert OperationUsed();
+        // casting to 'uint64' is safe because the amount check above caps it at MAX_AMOUNT
+        // forge-lint: disable-next-line(unsafe-typecast)
+        records[msg.sender][operation] = Record(other, uint64(amount), kind, state);
         history[msg.sender].push(Key(msg.sender, operation));
         history[other].push(Key(msg.sender, operation));
-        emit Created(msg.sender, operation, other);
+        emit Created(msg.sender, operation, other, amount, kind);
+    }
+
+    function load(address from, bytes32 operation) private view returns (Entry memory) {
+        Record memory found = records[from][operation];
+        return Entry(from, found.to, operation, found.amount, found.kind, found.state);
     }
 
     /// @dev Transfers are created Paid, so only a pending request passes this check.
-    function pending(address from, bytes32 operation) private view returns (Entry storage found) {
-        found = entries[from][operation];
-        if (found.from == address(0)) revert NotFound();
+    function pending(address from, bytes32 operation) private view returns (Record storage found) {
+        found = records[from][operation];
+        if (found.to == address(0)) revert NotFound();
         if (found.to != msg.sender) revert Unauthorized();
         if (found.state != State.Pending) revert NotPending();
     }

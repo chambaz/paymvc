@@ -3,7 +3,6 @@ import {
   ContractFunctionRevertedError,
   encodeFunctionData,
   erc20Abi,
-  formatEther,
   isAddress,
   keccak256,
   maxUint256,
@@ -12,7 +11,13 @@ import {
   type Address,
   type Hex,
 } from "viem";
-import { chainFor, publicClient, type Deployment } from "./config";
+import {
+  chainFor,
+  deploymentKey,
+  formatNative,
+  publicClient,
+  type Deployment,
+} from "./config";
 import { creditsAbi } from "./generated/creditsAbi";
 import { paymvcAbi } from "./generated/paymvcAbi";
 import { networkFor } from "../networks";
@@ -40,12 +45,12 @@ function parseEntryId(id: string) {
 
 export class FundingRequired extends Error {
   constructor(
+    config: Deployment,
     public address: Address,
     required: bigint,
-    symbol = "ETH",
   ) {
     super(
-      `Fund this wallet with at least ${formatEther(required)} testnet ${symbol}, then check funding again.`,
+      `Fund this wallet with at least ${formatNative(config, required)} testnet ${chainFor(config).nativeCurrency.symbol}, then check funding again.`,
     );
   }
 }
@@ -63,9 +68,14 @@ export async function fundingBudget(config: Deployment, address: Address) {
   return { required: estimated > minimum ? estimated : minimum, balance };
 }
 
+/** Deployments that passed verification in this page. The contracts cannot change. */
+const verified = new Set<string>();
+
 export async function verifyDeployment(config: Deployment) {
+  const key = deploymentKey(config);
+  if (verified.has(key)) return;
   const client = publicClient(config);
-  const [chain, code, token] = await Promise.all([
+  const [chain, code, token, decimals] = await Promise.all([
     client.getChainId(),
     client.getCode({ address: config.address }),
     client.readContract({
@@ -73,16 +83,23 @@ export async function verifyDeployment(config: Deployment) {
       abi: paymvcAbi,
       functionName: "token",
     }),
+    client.readContract({
+      address: config.token,
+      abi: erc20Abi,
+      functionName: "decimals",
+    }),
   ]);
   if (
     chain !== config.chainId ||
     !code ||
     keccak256(code) !== config.codeHash ||
-    token.toLowerCase() !== config.token.toLowerCase()
+    token.toLowerCase() !== config.token.toLowerCase() ||
+    decimals !== 0
   )
     throw new Error(
       "Deployment verification failed. Check the network configuration before starting.",
     );
+  verified.add(key);
 }
 
 /** Reads the entry `(from, operation)`. Returns undefined when the contract reverts with NotFound. */
@@ -276,11 +293,7 @@ export function payments(
       progress("Checking testnet funding");
       const { required, balance } = await fundingBudget(config, owner);
       if (!session.journal.register && balance < required)
-        throw new FundingRequired(
-          owner,
-          required,
-          chainFor(config).nativeCurrency.symbol,
-        );
+        throw new FundingRequired(config, owner, required);
       progress("Registering your wallet");
       await tx("register", () =>
         encodeFunctionData({ abi: paymvcAbi, functionName: "register" }),
