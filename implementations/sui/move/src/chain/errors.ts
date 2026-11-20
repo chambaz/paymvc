@@ -11,7 +11,29 @@ const abortCodes: Record<number, string> = {
   9: "This request has already been resolved. Refresh its status.",
 };
 
-/** Turn an error into a short message for the user. The chain module's errors already carry user-facing text. */
+/**
+ * A fixed message for an RPC failure. SDK messages can hold the endpoint URL, which
+ * can hold a provider key, so the user never sees them.
+ */
+function rpcFailure(code?: string) {
+  if (code === "RESOURCE_EXHAUSTED")
+    return "The RPC is rate-limiting requests. Your progress is saved. Wait a moment, then retry.";
+  if (code === "UNAVAILABLE")
+    return "The RPC is temporarily unavailable. Your progress is saved. Retry when it responds.";
+  if (code === "DEADLINE_EXCEEDED")
+    return "The RPC did not respond in time. Your progress is saved. Retry to check the same transactions.";
+  return "The RPC could not complete this step. Your progress is saved. Retry to check the original transactions.";
+}
+
+/** True for a browser fetch that failed before any response. */
+const networkFailure = (error: Error) =>
+  error instanceof TypeError &&
+  /fetch|network|load failed/i.test(error.message);
+
+/** True when a message names a URL. It is not shown, because a URL can hold a key. */
+const hasUrl = (message: string) => /[a-z][a-z0-9+.-]*:\/\//i.test(message);
+
+/** Turn an error into a short message for the user. Never includes RPC URLs or signed data. */
 export function readableError(error: unknown) {
   if (!(error instanceof Error))
     return "This step could not be completed. Please retry.";
@@ -23,5 +45,10 @@ export function readableError(error: unknown) {
     "The transaction would fail on-chain. Nothing was sent. Check your credits and SUI, then retry.";
   if (abort) return abortCodes[Number(abort[1])] ?? failed;
   if (/MoveAbort/.test(error.message)) return failed;
+  // The gRPC transport reports a failed call as an RpcError with a status code.
+  if (error.name === "RpcError")
+    return rpcFailure((error as { code?: string }).code);
+  if (networkFailure(error) || hasUrl(error.message)) return rpcFailure();
+  // The chain module's own errors carry user-facing text.
   return error.message;
 }
