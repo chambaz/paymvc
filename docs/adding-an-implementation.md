@@ -82,7 +82,7 @@ Follow [transaction recovery](recovery.md). Save each signed transaction before 
 Every implementation's selector lists all implementations. Add yours to the `implementations` list in `src/components/payments-view.tsx`, with a `VITE_<CHAIN>_URL` variable and a local port, and copy the changed file to every implementation. Then:
 
 - Add your destination to the `switching.spec.ts` browser test in each implementation, and to the destination list in Thruput's selector test (`tests/e2e/payments.spec.ts`).
-- Set `VITE_<CHAIN>_URL` to your hosted address in the hosting settings of every implementation's site. On Railway, these are service variables. The landing page links only the EVM demo; add your chain to it as described in step 8.
+- Set `VITE_<CHAIN>_URL` to your hosted address in the hosting settings of every implementation's site and of the landing page. On Railway, these are service variables. The landing page links each network to its demo; add your chain to it as described in step 8.
 
 Use the next free ports from this table: one for `npm run dev`, and the next one for the browser tests. Some implementations also serve `npm run local` on their browser test port.
 
@@ -123,7 +123,7 @@ Add the implementation to each place that lists the implementations:
 - the per-chain table in `docs/recovery.md`
 - the native differences table in `docs/contract-interface.md`
 - the selector order in `docs/ui.md`
-- the network list in `web/src/main.tsx`, with a monochrome icon in `web/src/assets/networks/` and its source in `web/src/assets/README.md`
+- the network list in `web/src/main.tsx`, with its `VITE_<CHAIN>_URL` and local port, a monochrome icon in `web/src/assets/networks/`, and the icon's source in `web/src/assets/README.md`
 - the `networks` list in `web/scripts/assets.mjs`, which draws the link preview image. Run `npm run assets` in `web/` and commit the new `web/public/og.png`.
 
 Write a README with these sections:
