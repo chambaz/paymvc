@@ -15,6 +15,9 @@ const snapshots = [
   ["conformance/recovery.test.ts", "tests/conformance/recovery.test.ts"],
   ["conformance/manifest.schema.json", "implementation.schema.json"],
   ["conformance/evidence.schema.json", "evidence.schema.json"],
+  // A copied folder keeps the license and the third-party notices.
+  ["LICENSE", "LICENSE"],
+  ["NOTICE.md", "NOTICE.md"],
 ];
 
 // Every file in src/components/ is shared view code.

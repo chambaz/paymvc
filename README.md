@@ -57,4 +57,4 @@ The demo keeps disposable keys in browser storage. All credits and networks are 
 
 ## License
 
-MIT. Third-party libraries keep their own licenses. shadcn/ui components are adapted from its MIT-licensed registry. OpenZeppelin contracts are a pinned MIT dependency.
+MIT. See [LICENSE](LICENSE). Each implementation folder has its own copy, so a copied folder keeps it. The shadcn/ui components are adapted from its MIT-licensed registry; [NOTICE.md](NOTICE.md) has its license. Other libraries are dependencies and keep their own licenses. OpenZeppelin contracts are a pinned MIT dependency.

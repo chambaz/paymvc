@@ -47,6 +47,7 @@ These files are shared. Copy them without changes:
 - `public/favicon.svg`, `public/favicon.ico`, and `public/apple-touch-icon.png`, copies of the files that `web/scripts/assets.mjs` makes
 - `tests/conformance/*`
 - `implementation.schema.json` and `evidence.schema.json`
+- `LICENSE` and `NOTICE.md`, copies of the files at the repository root
 
 If a shared file must change, change it in every implementation in the same pull request.
 

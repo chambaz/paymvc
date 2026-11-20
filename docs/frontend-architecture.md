@@ -91,6 +91,7 @@ These files must be identical in every implementation:
 - `index.html`, which holds the icon links and the link preview tags
 - `public/theme.js`
 - `public/favicon.svg`, `public/favicon.ico`, and `public/apple-touch-icon.png`, copies of the files that `web/scripts/assets.mjs` makes
+- `LICENSE` and `NOTICE.md`, copies of the files at the repository root
 
 `Caddyfile.template`, the hosted site's headers, is a copy of `web/Caddyfile.template`. Only the RPC hosts in `connect-src` differ.
 
