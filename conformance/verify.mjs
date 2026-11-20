@@ -77,6 +77,28 @@ async function implementations() {
 
 const failures = [];
 
+// Each site serves the landing page's Caddy configuration. Only the RPC hosts
+// in `connect-src` change.
+const withoutRpcHosts = (text) =>
+  text?.replace(/connect-src 'self'[^;"]*/, "connect-src 'self'");
+const caddyfile = await read(join(root, "web/Caddyfile.template"));
+// The RPC origins that the hosted site's deployment records call.
+async function rpcOrigins(folder) {
+  const records = [
+    join(folder, "public/deployment.json"),
+    ...(await readdir(join(folder, "deployments")).catch(() => []))
+      .filter((file) => file.endsWith(".json"))
+      .map((file) => join(folder, "deployments", file)),
+  ];
+  const origins = [];
+  for (const path of records) {
+    const text = await read(path);
+    const rpcUrl = text === undefined ? undefined : JSON.parse(text).rpcUrl;
+    if (typeof rpcUrl === "string") origins.push(new URL(rpcUrl).origin);
+  }
+  return origins;
+}
+
 // Committed evidence is complete: one chain run and one browser run for each
 // viewport. Each implementation validates the full shape against its schema copy.
 function checkEvidence(path, text) {
@@ -137,6 +159,24 @@ for (const folder of await implementations()) {
       (await read(join(folder, local))) !== (await read(join(root, canonical)))
     )
       failures.push(`${name}/${local} differs from ${canonical}`);
+  if (
+    withoutRpcHosts(await read(join(folder, "Caddyfile.template"))) !==
+    caddyfile
+  )
+    failures.push(
+      `${name}/Caddyfile.template differs from web/Caddyfile.template outside connect-src`,
+    );
+  // The browser blocks any RPC host that connect-src does not list.
+  const allowed = (
+    /connect-src ([^;"]*)/.exec(
+      (await read(join(folder, "Caddyfile.template"))) ?? "",
+    )?.[1] ?? ""
+  ).split(" ");
+  for (const origin of await rpcOrigins(folder))
+    if (!allowed.includes(origin))
+      failures.push(
+        `${name}/Caddyfile.template connect-src does not allow ${origin}`,
+      );
   for (const file of await readdir(join(folder, "evidence")).catch(() => []))
     if (file.endsWith(".json"))
       failures.push(

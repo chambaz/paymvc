@@ -74,6 +74,7 @@ Follow [transaction recovery](recovery.md). Save each signed transaction before 
 - Verify the deployment in the browser before the first write: network identity, contract code, and token settings.
 - Link a faucet. If the faucet needs sign-in or has limits, say so in your README.
 - Add `railpack.json` with `"provider": "node"`. The hosted site is the static frontend build, so contract files such as `Cargo.toml` must not change how it builds.
+- Copy `web/Caddyfile.template` and add your public RPC hosts to `connect-src`. Change nothing else. The browser blocks calls to any other host. To check, serve the build with this file and look for Content Security Policy errors in the browser console.
 
 ### 5. Add the chain to the selector
 
