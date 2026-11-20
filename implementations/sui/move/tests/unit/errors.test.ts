@@ -29,3 +29,29 @@ it("keeps the chain module's own messages", () => {
     "Not enough demo credits.",
   );
 });
+
+/** A failed gRPC call, as the transport reports it. */
+const rpcError = (code: string) =>
+  Object.assign(new Error("call failed"), { name: "RpcError", code });
+
+it("names rate limits, outages, and timeouts", () => {
+  expect(readableError(rpcError("RESOURCE_EXHAUSTED"))).toMatch(
+    /rate-limiting/,
+  );
+  expect(readableError(rpcError("UNAVAILABLE"))).toMatch(
+    /temporarily unavailable/,
+  );
+  expect(readableError(rpcError("DEADLINE_EXCEEDED"))).toMatch(
+    /did not respond in time/,
+  );
+  expect(readableError(rpcError("INTERNAL"))).toMatch(/could not complete/);
+});
+
+it("explains a failed fetch and hides any message with a URL", () => {
+  expect(readableError(new TypeError("Failed to fetch"))).toMatch(
+    /could not complete/,
+  );
+  expect(
+    readableError(new Error("POST https://rpc.example/secret-key failed")),
+  ).not.toContain("secret-key");
+});
