@@ -1,6 +1,6 @@
 # PayMVC website
 
-The PayMVC landing page. It introduces the project, lists the supported networks, and links to the Ethereum demo and the GitHub repository. It has no wallet or chain code.
+The PayMVC landing page. It introduces the project and links to each network's demo and the GitHub repository. It has no wallet or chain code.
 
 ## Run
 
@@ -23,9 +23,19 @@ Run `npm run check` before you commit. It runs the type check and the Prettier c
 
 ## Configuration
 
-| Variable            | Default                                   | Use                                  |
-| ------------------- | ----------------------------------------- | ------------------------------------ |
-| `VITE_ETHEREUM_URL` | `http://127.0.0.1:5173/?network=ethereum` | The demo that **Launch Demo** opens. |
+| Variable             | Default                                    | Use                                               |
+| -------------------- | ------------------------------------------ | ------------------------------------------------- |
+| `VITE_ETHEREUM_URL`  | `http://127.0.0.1:5173/?network=ethereum`  | The Ethereum demo. **Launch Demo** also opens it. |
+| `VITE_BASE_URL`      | `http://127.0.0.1:5177/?network=base`      | The Base demo.                                    |
+| `VITE_ROBINHOOD_URL` | `http://127.0.0.1:5187/?network=robinhood` | The Robinhood demo.                               |
+| `VITE_MONAD_URL`     | `http://127.0.0.1:5179/?network=monad`     | The Monad demo.                                   |
+| `VITE_SOLANA_URL`    | `http://127.0.0.1:5175`                    | The Solana demo.                                  |
+| `VITE_SUI_URL`       | `http://127.0.0.1:5183`                    | The Sui demo.                                     |
+| `VITE_APTOS_URL`     | `http://127.0.0.1:5185`                    | The Aptos demo.                                   |
+| `VITE_STELLAR_URL`   | `http://127.0.0.1:5181`                    | The Stellar demo.                                 |
+| `VITE_THRUPUT_URL`   | `http://127.0.0.1:5189`                    | The Thruput demo.                                 |
+
+Hosted builds set every variable to the network's subdomain, for example `https://base.paymvc.com`.
 
 On Railway, Caddy serves the build with `Caddyfile.template`: Railpack's default Node template, a permanent redirect from `www.paymvc.com` to `paymvc.com`, and these headers:
 

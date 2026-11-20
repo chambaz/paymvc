@@ -13,23 +13,67 @@ import stellar from "./assets/networks/stellar.svg";
 import github from "./assets/github.svg";
 import "./styles.css";
 
-// The Ethereum demo. Locally, the EVM implementation serves it on port 5173.
-const demoUrl =
-  import.meta.env.VITE_ETHEREUM_URL ||
-  "http://127.0.0.1:5173/?network=ethereum";
+const repository = "https://github.com/chambaz/paymvc";
 
+/**
+ * Every network's demo, in the implementations' selector order. Hosted builds set
+ * the VITE_*_URL variables; the defaults are the local development ports.
+ */
 const networks = [
-  { name: "Ethereum", icon: ethereum },
-  { name: "Base", icon: base },
-  { name: "Robinhood", icon: robinhood },
-  { name: "Monad", icon: monad },
-  { name: "Solana", icon: solana },
-  { name: "Sui", icon: sui },
-  { name: "Aptos", icon: aptos },
-  { name: "Stellar", icon: stellar },
+  {
+    name: "Ethereum",
+    icon: ethereum,
+    url:
+      import.meta.env.VITE_ETHEREUM_URL ||
+      "http://127.0.0.1:5173/?network=ethereum",
+  },
+  {
+    name: "Base",
+    icon: base,
+    url: import.meta.env.VITE_BASE_URL || "http://127.0.0.1:5177/?network=base",
+  },
+  {
+    name: "Robinhood",
+    icon: robinhood,
+    url:
+      import.meta.env.VITE_ROBINHOOD_URL ||
+      "http://127.0.0.1:5187/?network=robinhood",
+  },
+  {
+    name: "Monad",
+    icon: monad,
+    url:
+      import.meta.env.VITE_MONAD_URL || "http://127.0.0.1:5179/?network=monad",
+  },
+  {
+    name: "Solana",
+    icon: solana,
+    url: import.meta.env.VITE_SOLANA_URL || "http://127.0.0.1:5175",
+  },
+  {
+    name: "Sui",
+    icon: sui,
+    url: import.meta.env.VITE_SUI_URL || "http://127.0.0.1:5183",
+  },
+  {
+    name: "Aptos",
+    icon: aptos,
+    url: import.meta.env.VITE_APTOS_URL || "http://127.0.0.1:5185",
+  },
+  {
+    name: "Stellar",
+    icon: stellar,
+    url: import.meta.env.VITE_STELLAR_URL || "http://127.0.0.1:5181",
+  },
   // Project Thruput uses the Stellar mark on its official site.
-  { name: "Thruput", icon: stellar },
+  {
+    name: "Thruput",
+    icon: stellar,
+    url: import.meta.env.VITE_THRUPUT_URL || "http://127.0.0.1:5189",
+  },
 ];
+// Launch Demo opens the first network.
+const demoUrl = networks[0]!.url;
 
 function BrandMark({
   src,
@@ -62,7 +106,7 @@ function DemoActions({ placement }: { placement: "header" | "hero" }) {
         Launch Demo
       </ButtonLink>
       <ButtonLink
-        href="https://github.com/chambaz/paymvc"
+        href={repository}
         target="_blank"
         rel="noreferrer"
         size={size}
@@ -135,13 +179,15 @@ function LandingPage() {
               role="list"
               className="grid grid-cols-3 gap-x-6 gap-y-5 sm:gap-x-10 xl:flex xl:justify-center xl:gap-7"
             >
-              {networks.map(({ name, icon }) => (
-                <li
-                  key={name}
-                  className="flex flex-col items-center gap-2 text-base sm:flex-row"
-                >
-                  <BrandMark src={icon} />
-                  {name}
+              {networks.map(({ name, icon, url }) => (
+                <li key={name}>
+                  <a
+                    href={url}
+                    className="flex flex-col items-center gap-2 text-base underline-offset-4 hover:underline sm:flex-row"
+                  >
+                    <BrandMark src={icon} />
+                    {name}
+                  </a>
                 </li>
               ))}
             </ul>
